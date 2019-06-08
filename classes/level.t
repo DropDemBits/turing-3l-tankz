@@ -1,22 +1,28 @@
 % Level class & data structures
-const TILE_SIZE : int := 48
-
-type MazeNode :
-record
-    tileX, tileY : int
-    visited : boolean
-end record
-
+unit
 class Level
-    import MazeNode, TILE_SIZE
+    export initLevel, render, update, setOffset, getEdges, drawEdges, rg
+    
+    const TILE_SIZE : int := 64
+    
+    %% Internal Types %%
+    % Maze node for maze generation
+    type MazeNode :
+        record
+            tileX, tileY : int
+            visited : boolean
+        end record
+    
+    % Offsets used for direction determination
+    const offsets : array 0 .. 3 of int := init (0, 1, 0, -1)
     
     var width, height : int := 0
     var mapTiles : flexible array 0 .. -1 of int
     var mapNodes : flexible array 0 .. -1 of ^MazeNode
     
-    width := 10
-    height := 10
+    var cameraX, cameraY : real := 0
     
+    % Gets the edges at the current tile
     fcn getEdges (tx, ty : int) : int
         if tx < 0 or ty < 0 or tx >= width or ty >= height then
             result -1
@@ -48,7 +54,7 @@ class Level
         newEdgeB := getEdges (tx + xOff, ty + yOff)
         
         if newEdgeA = -1 and newEdgeB = -1 then
-            % OOB
+            % Out of Bounds
             return
         end if
         
@@ -63,40 +69,30 @@ class Level
         end if
     end clearEdge
     
-    proc drawTile (tileX, tileY, clr : int)
-        const startX := tileX * TILE_SIZE
-        const startY := tileY * TILE_SIZE
-        const endX := (tileX + 1) * TILE_SIZE
-        const endY := (tileY + 1) * TILE_SIZE
         
-        % Draw box
-        drawfillbox (startX, startY, endX, endY, clr)
-    end drawTile
-    
     proc drawEdges (tileX, tileY, clr : int)
-        const startX := tileX * TILE_SIZE
-        const startY := tileY * TILE_SIZE
-        const endX := (tileX + 1) * TILE_SIZE
-        const endY := (tileY + 1) * TILE_SIZE
-        const edge := getEdges (tileX, tileY)
+        var startX := tileX * TILE_SIZE + round (cameraX)
+        var startY := tileY * TILE_SIZE + round (cameraY)
+        var endX := (tileX + 1) * TILE_SIZE + round (cameraX)
+        var endY := (tileY + 1) * TILE_SIZE + round (cameraY)
+        var edges := getEdges (tileX, tileY)
         
-        if edge = -1 then
+        if edges = -1 then
+            drawfillbox (startX, startY, endX, endY, blue)
             return
         end if
         
         % Draw edges
         const RADIUS : int := 1
-        %if (edge & 1) not= 0 then drawfillbox (  endX + RADIUS, startY - RADIUS,   endX - RADIUS,   endY - RADIUS, clr) end if
-        %if (edge & 2) not= 0 then drawfillbox (  endX + RADIUS,   endY + RADIUS, startX + RADIUS,   endY - RADIUS, clr) end if
-        %if (edge & 4) not= 0 then drawfillbox (startX - RADIUS,   endY + RADIUS, startX + RADIUS, startY + RADIUS, clr) end if
-        %if (edge & 8) not= 0 then drawfillbox (startX - RADIUS, startY - RADIUS,   endX - RADIUS, startY + RADIUS, clr) end if
+        if (edges & 1) not= 0 then drawfillbox (  endX + RADIUS, startY - RADIUS,   endX - RADIUS,   endY - RADIUS, clr) end if
+        if (edges & 2) not= 0 then drawfillbox (  endX + RADIUS,   endY + RADIUS, startX + RADIUS,   endY - RADIUS, clr) end if
+        if (edges & 4) not= 0 then drawfillbox (startX - RADIUS,   endY + RADIUS, startX + RADIUS, startY + RADIUS, clr) end if
+        if (edges & 8) not= 0 then drawfillbox (startX - RADIUS, startY - RADIUS,   endX - RADIUS, startY + RADIUS, clr) end if
     end drawEdges
     
+    % Generates the map starting at the given node
     proc generateMaze (currIdx : int, currNode : ^MazeNode)
         % Recursive Depth first search of maze generation
-        
-        % Offsets used for direction determination
-        const offsets : array 0 .. 3 of int := init (0, 1, 0, -1)
         
         % The direction to walk through
         var dir : int := 0
@@ -104,17 +100,6 @@ class Level
         var xOff, yOff : int
         % Whether the all of the current node's neighbors have been visited
         var allVisited : boolean := true
-        
-        cls
-        for i : 0 .. upper (mapTiles)
-            const tileX : int := i mod width
-            const tileY : int := i div width
-            
-            % Draw map edges
-            drawEdges (tileX, tileY, 16)
-        end for
-            View.Update()
-        delay(15)
         
         % Current node will always be visited
         currNode -> visited := true
@@ -154,7 +139,14 @@ class Level
         end loop
     end generateMaze
     
-    proc initMaze (width_, height_ : int)
+    /**
+    * Initializes the level
+    *
+    * Parameters:
+    * width_:   The width of the map
+    * height_:  The length of the map
+    */
+    proc initLevel (width_, height_ : int)
         width := width_
         height := height_
         
@@ -179,5 +171,88 @@ class Level
             mapNodes (i) -> tileY := tileY
             mapNodes (i) -> visited := false
         end for
-    end initMaze
+        
+        % Generate the main maze
+        generateMaze (0, mapNodes(0))
+        
+        % Knock down a few walls
+        for i : 1 .. 10
+            var tx, ty, dir : int
+            tx := Rand.Int (0, width)
+            ty := Rand.Int (0, height)
+            dir := Rand.Int (0, 3)
+            
+            var xOff := offsets ((dir + 1) mod 4)
+            var yOff := offsets (dir)
+            
+            % Only knock down edges that don't form the boundary
+            if getEdges (tx + xOff, ty + yOff) not= -1 then
+                clearEdge (tx, ty, dir)
+            end if
+        end for
+    end initLevel
+    
+    proc rg
+        for i : 0 .. upper (mapTiles)
+            mapTiles (i) := 2#1111
+        end for
+            
+        % Generate the maze nodes
+        for i : 0 .. upper (mapNodes)
+            const tileX : int := (i mod width)
+            const tileY : int := (i div width)
+            
+            mapNodes (i) -> tileX := tileX
+            mapNodes (i) -> tileY := tileY
+            mapNodes (i) -> visited := false
+        end for
+    
+        generateMaze (0, mapNodes(0))
+        
+        for i : 1 .. 10
+            var tx, ty, dir : int
+            tx := Rand.Int (0, width)
+            ty := Rand.Int (0, height)
+            dir := Rand.Int (0, 3)
+            
+            var xOff := offsets ((dir + 1) mod 4)
+            var yOff := offsets (dir)
+            
+            % Only knock down edges that don't form the boundary
+            if getEdges (tx + xOff, ty + yOff) not= -1 then
+                clearEdge (tx, ty, dir)
+            end if
+        end for
+    end rg
+    
+    /**
+    * Sets the level draw offset from the bottom right corner
+    */
+    proc setOffset (offX_, offY_ : real)
+        cameraX := offX_
+        cameraY := offY_
+    end setOffset
+    
+    /**
+    * Updates the level and related objects
+    */
+    proc update (elapsed : int)
+    end update
+    
+    /**
+    * Renders the map and related objects
+    *
+    * Parameters:
+    * partialTicks: The amount to interpolate between updates
+    */
+    proc render (partialTicks : real)
+        for i : 0 .. upper (mapTiles)
+            % Calculate tile to draw
+            const tileX : int := i mod width
+            const tileY : int := i div width
+            
+            % Draw map edges
+            drawEdges (tileX, tileY, 16)
+        end for
+    end render
 end Level

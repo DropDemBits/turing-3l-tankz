@@ -1,0 +1,175 @@
+unit
+class PlayerObject
+    inherit Object in "objects.t"
+    export setInputScheme, setColour
+    
+    const MOVEMENT_SPEED : real := 1.25
+    const ROTATE_SPEED : real := 2
+    const MOVEMENT_DECAY : real := 0.9
+    const ROTATE_DECAY : real := 0.7
+    
+    var shooting : boolean := false
+    
+    var key_forward     : char := 'i'
+    var key_left        : char := 'j'
+    var key_backward    : char := 'k'
+    var key_right       : char := 'l'
+    var key_shoot       : char := 'u'
+    
+    var base_colour     : int := 40
+    
+    proc setInputScheme (f, l, b, r, s : char)
+        key_forward     := f
+        key_left        := l
+        key_backward    := b
+        key_right       := r
+        key_shoot       := s
+    end setInputScheme
+    
+    proc setColour (clr : int)
+        base_colour := clr
+    end setColour
+    
+    body proc render
+        % Points used for polygon drawing
+        var polyX, polyY : array 1 .. 4 of int
+    
+        const BASE_WIDTH := 25 / 2
+        const BASE_LENGTH := BASE_WIDTH * 1.5
+        
+        const BARREL_OFFSET : real := (10 div 2)
+        const BARREL_LENGTH : real := (40 div 2) + BARREL_OFFSET
+        const BARREL_RADIUS : real := 5 / 2
+        
+        const HEAD_RADIUS : int := 18 div 2
+        
+        var effX, effY, effAngle : real
+        effAngle := angle + angularVel * partialTicks
+        effX := offX + posX + speed * cosd (effAngle) * partialTicks
+        effY := offY + posY + speed * sind (effAngle) * partialTicks
+    
+        % Base
+        var baseOffX, baseOffY : real := 0
+        baseOffX := round(BASE_WIDTH * -sind (effAngle))
+        baseOffY := round(BASE_WIDTH * +cosd (effAngle))
+        
+        polyX (1) := round (effX - cosd (effAngle) * BASE_LENGTH + baseOffX)
+        polyX (2) := round (effX + cosd (effAngle) * BASE_LENGTH + baseOffX)
+        polyX (3) := round (effX + cosd (effAngle) * BASE_LENGTH - baseOffX)
+        polyX (4) := round (effX - cosd (effAngle) * BASE_LENGTH - baseOffX)
+        polyY (1) := round (effY - sind (effAngle) * BASE_LENGTH + baseOffY)
+        polyY (2) := round (effY + sind (effAngle) * BASE_LENGTH + baseOffY)
+        polyY (3) := round (effY + sind (effAngle) * BASE_LENGTH - baseOffY)
+        polyY (4) := round (effY - sind (effAngle) * BASE_LENGTH - baseOffY)
+    
+        drawfillpolygon(polyX, polyY, 4, base_colour + 24 * 3)
+        
+        
+        % Barrel
+        var barrelOffX, barrelOffY : real := 0
+        barrelOffX := round(BARREL_RADIUS * -sind (angle))
+        barrelOffY := round(BARREL_RADIUS * +cosd (angle))
+        
+        polyX (1) := round (effX + cosd (effAngle) * BARREL_OFFSET - barrelOffX)
+        polyX (2) := round (effX + cosd (effAngle) * BARREL_OFFSET + barrelOffX)
+        polyX (3) := round (effX + cosd (effAngle) * BARREL_LENGTH + barrelOffX)
+        polyX (4) := round (effX + cosd (effAngle) * BARREL_LENGTH - barrelOffX)
+        polyY (1) := round (effY + sind (effAngle) * BARREL_OFFSET - barrelOffY)
+        polyY (2) := round (effY + sind (effAngle) * BARREL_OFFSET + barrelOffY)
+        polyY (3) := round (effY + sind (effAngle) * BARREL_LENGTH + barrelOffY)
+        polyY (4) := round (effY + sind (effAngle) * BARREL_LENGTH - barrelOffY)
+        
+        drawfillpolygon(polyX, polyY, 4, 24)
+        
+        
+        % Head
+        drawfilloval (round(effX), round(effY), HEAD_RADIUS, HEAD_RADIUS, base_colour)
+        
+        if shooting then
+            locate (5, 1)
+            put "pew ", base_colour
+        end if
+        
+        var lookingX, lookingY : real
+        lookingX := cosd (effAngle)
+        lookingY := sind (effAngle)
+        
+        locate (6 + (base_colour - 32), 1)
+        put floor(posX / 64), ", ", floor(posY / 64) ..
+        locate (7 + (base_colour - 32), 1)
+        put round(posX / 64), ", ", round(posY / 64) ..
+        
+        level -> drawEdges (round(posX / 64 - 0.5 + lookingX), round(posY / 64 - 0.5 + lookingY), base_colour + 24 * 0)
+        level -> drawEdges (round(posX / 64 - 0.5), round(posY / 64 - 0.5), base_colour + 24 * 1)
+        level -> drawEdges (round(posX / 64 - 0.5 - lookingX), round(posY / 64 - 0.5 - lookingY), base_colour + 24 * 2)
+        level -> drawEdges (floor(posX / 64 - 0.5 - lookingX), floor(posY / 64 - 0.5 - lookingY), base_colour + 24 * 3)
+        
+        drawline (round (effX),
+                  round (effY),
+                  round (effX + lookingX * (25 + (speed * 4) ** 2)),
+                  round (effY + lookingY * (25 + (speed * 4) ** 2)),
+                  black)
+    end render
+
+    body proc update
+        var keys : array char of boolean
+        Input.KeyDown (keys)
+        
+        var nvel, nangvel : real := 0
+        
+        if keys (key_forward) then
+            nvel += 0.0625
+        end if
+        if keys (key_backward) then
+            nvel -= 0.0625
+        end if
+        
+        if keys (key_left) then
+            nangvel += 0.0625
+        end if
+        if keys (key_right) then
+            nangvel -= 0.0625
+        end if
+        
+        shooting := keys (key_shoot)
+        
+        speed += nvel
+        
+        % Clamp the speed
+        if speed > MOVEMENT_SPEED then
+            speed := MOVEMENT_SPEED
+        elsif speed < -MOVEMENT_SPEED then
+            speed := -MOVEMENT_SPEED
+        end if
+        
+        angularVel += nangvel
+        % Clamp the angular velocity
+        if angularVel > ROTATE_SPEED then
+            angularVel := ROTATE_SPEED
+        elsif angularVel < -ROTATE_SPEED then
+            angularVel := -ROTATE_SPEED
+        end if
+        
+        posX += speed * cosd (angle)
+        posY += speed * sind (angle)
+        angle += angularVel
+        
+        % Decay the speed
+        if nvel = 0 then
+            if abs (speed) > 0.001 then
+                speed *= MOVEMENT_DECAY
+            else
+                speed := 0
+            end if
+        end if
+        
+        % Decay the angular velocity
+        if nangvel = 0 then
+            if abs (angularVel) > 0.001 then
+                angularVel *= ROTATE_DECAY
+            else
+                angularVel := 0
+            end if
+        end if
+    end update
+end PlayerObject
