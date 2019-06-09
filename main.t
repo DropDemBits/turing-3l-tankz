@@ -15,12 +15,11 @@
 import UI in "lib/ui_util.tu",
 
 % Main classes
-PlayerObject in "classes/player.t",
-Level in "classes/level.t"
+Map in "classes/map.t"
 
 
 put "3L Tankz: Work in Progress"
-setscreen ("graphics:1024;640;offscreenonly")
+setscreen ("graphics:1024;640;offscreenonly,title:3L Tankz,position:center;middle")
 
 % Timestep at which the game is updated at
 const UPDATE_QUANTUM : int := 1000 div 60
@@ -33,37 +32,21 @@ var ups, fps : int := 0
 var lastUps, lastFps : int := 0
 var frametimer : int := 0
 
-var player1 : ^PlayerObject
-var player2 : ^PlayerObject
-var level : ^Level
-var prs : boolean := false
+% The game map
+var map : ^Map
+
 
 proc processInput ()
     var keys : array char of boolean
     Input.KeyDown (keys)
-    
-    if keys ('z') and not prs then
-        level -> rg ()
-        prs := true
-    elsif not keys ('z') and prs then
-        prs := false
-    end if
 end processInput
 
 proc update (elapsed : int)
-    player1 -> update (elapsed)
-    player2 -> update (elapsed)
+    map -> update (elapsed)
 end update
 
 proc render (pt : real)
-    colourback (30)
-    colour (black)
-    cls
-    
-    level -> setOffset (maxx div 2 - player1 -> posX, maxy div 2 - player1 -> posY)
-    level -> render (pt)
-    player1 -> render (maxx div 2 - player1 -> posX, maxy div 2 - player1 -> posY, pt)
-    player2 -> render (maxx div 2 - player1 -> posX, maxy div 2 - player1 -> posY, pt)
+    map -> render (pt)
 
     if Time.Elapsed - frametimer > 1000 then
         lastUps := ups
@@ -81,20 +64,14 @@ proc render (pt : real)
 end render
 
 proc initGame ()
-    new Level, level
-    level -> initLevel (11, 5)
-    level -> setOffset (maxx div 2, maxy div 2)
+    % Initialize the map
+    new Map, map
+    map -> initMap (11, 8)
     
-    new PlayerObject, player1
-    player1 -> initObj (0, 0, 0)
-    player1 -> setColour (40)
-    player1 -> setLevel (level)
-    
-    new PlayerObject, player2
-    player2 -> initObj (0, 0, 0)
-    player2 -> setInputScheme ('w', 'a', 's', 'd', 'q')
-    player2 -> setColour (32)
-    player2 -> setLevel (level)
+    % Add the players
+    map -> addPlayer (40, 0, 0,  'i', 'j', 'k', 'l', 'u')
+    map -> addPlayer (54, 10, 0, 'w', 'a', 's', 'd', 'q')
+    map -> addPlayer (48, 10, 4, KEY_UP_ARROW, KEY_LEFT_ARROW, KEY_DOWN_ARROW, KEY_RIGHT_ARROW, KEY_CTRL)
 end initGame
 
 proc run ()
@@ -110,6 +87,10 @@ proc run ()
         var elapsed : int := now - lastTime
         lastTime := now
         catchup += elapsed
+        
+        colourback (30)
+        colour (black)
+        cls
         
         % Handle input events
         processInput ()
@@ -127,9 +108,8 @@ proc run ()
             ups += 1
         end loop
         
-        % Draw everything
-        % ???: Do we need partialTicks (time in between updates)
-        render (catchup / UPDATE_QUANTUM)
+        % Draw everything (calculate update interpolation also)
+        render (catchup / (UPDATE_QUANTUM * 1000))
         fps += 1
         
         % Handle graceful exit

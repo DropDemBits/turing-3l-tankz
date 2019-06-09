@@ -5,11 +5,17 @@ class Object
     import Level in "level.t"
     export update, render, initObj, setLevel, posX, posY
 
-    var posX, posY : real
-    var angle : real
+    % Position & Orientation
+    var posX, posY : real := 0
+    var angle : real := 0
     
-    var speed : real
-    var angularVel : real
+    % Speeds
+    var speed : real := 0
+    var angularVel : real := 0
+    
+    % Accelerations
+    var acceleration : real := 0
+    var angularAccel : real := 0
     
     var level : ^Level := nil
     

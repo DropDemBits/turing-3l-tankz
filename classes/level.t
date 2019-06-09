@@ -1,9 +1,29 @@
 % Level class & data structures
 unit
 class Level
-    export initLevel, render, update, setOffset, getEdges, drawEdges, rg
+    export
+        % Instance-only
+        initLevel, freeLevel, render, update, setOffset, getEdges, inBounds, drawEdges,
+        % Constants
+        TILE_SIZE, DIR_RIGHT, DIR_UP, DIR_LEFT, DIR_DOWN, EDGE_RIGHT, EDGE_UP, EDGE_LEFT, EDGE_DOWN
     
     const TILE_SIZE : int := 64
+    
+    % Line radius
+    const RADIUS : int := 1
+    
+    % Ordinal direction constants
+    const DIR_RIGHT : int := 0
+    const DIR_UP    : int := 1
+    const DIR_LEFT  : int := 2
+    const DIR_DOWN  : int := 3
+    
+    % Edge bit constants
+    const EDGE_RIGHT : int := 1 shl DIR_RIGHT
+    const EDGE_UP    : int := 1 shl DIR_UP
+    const EDGE_LEFT  : int := 1 shl DIR_LEFT
+    const EDGE_DOWN  : int := 1 shl DIR_DOWN
+    
     
     %% Internal Types %%
     % Maze node for maze generation
@@ -22,9 +42,15 @@ class Level
     
     var cameraX, cameraY : real := 0
     
-    % Gets the edges at the current tile
+    % Test if a given tile position is in bounds
+    fcn inBounds (tx, ty : int) : boolean
+        result tx >= 0 and ty >= 0 and tx < width and ty < height
+    end inBounds
+    
+    % Gets the edges at the given tile
     fcn getEdges (tx, ty : int) : int
-        if tx < 0 or ty < 0 or tx >= width or ty >= height then
+        % Check if the tile is outside of the bounds
+        if not inBounds (tx, ty) then
             result -1
         end if
         
@@ -78,16 +104,15 @@ class Level
         var edges := getEdges (tileX, tileY)
         
         if edges = -1 then
-            drawfillbox (startX, startY, endX, endY, blue)
+            drawfillbox (startX, startY, endX, endY, clr)
             return
         end if
         
         % Draw edges
-        const RADIUS : int := 1
-        if (edges & 1) not= 0 then drawfillbox (  endX + RADIUS, startY - RADIUS,   endX - RADIUS,   endY - RADIUS, clr) end if
-        if (edges & 2) not= 0 then drawfillbox (  endX + RADIUS,   endY + RADIUS, startX + RADIUS,   endY - RADIUS, clr) end if
-        if (edges & 4) not= 0 then drawfillbox (startX - RADIUS,   endY + RADIUS, startX + RADIUS, startY + RADIUS, clr) end if
-        if (edges & 8) not= 0 then drawfillbox (startX - RADIUS, startY - RADIUS,   endX - RADIUS, startY + RADIUS, clr) end if
+        if (edges & EDGE_RIGHT) not= 0 then drawfillbox (  endX + RADIUS, startY - RADIUS,   endX - RADIUS,   endY - RADIUS, clr) end if
+        if (edges & EDGE_UP   ) not= 0 then drawfillbox (  endX + RADIUS,   endY + RADIUS, startX + RADIUS,   endY - RADIUS, clr) end if
+        if (edges & EDGE_LEFT ) not= 0 then drawfillbox (startX - RADIUS,   endY + RADIUS, startX + RADIUS, startY + RADIUS, clr) end if
+        if (edges & EDGE_DOWN ) not= 0 then drawfillbox (startX - RADIUS, startY - RADIUS,   endX - RADIUS, startY + RADIUS, clr) end if
     end drawEdges
     
     % Generates the map starting at the given node
@@ -115,7 +140,7 @@ class Level
             yOff := offsets (dir)
             
             % Check if the direction is inside of the map
-            if getEdges (currNode -> tileX + xOff, currNode -> tileY + yOff) not= -1 then
+            if inBounds (currNode -> tileX + xOff, currNode -> tileY + yOff) then
                 % Calculate the next node indicies
                 var nextIdx : int := currIdx + (xOff + yOff * width)
                 var nextNode : ^MazeNode := mapNodes (nextIdx)
@@ -139,6 +164,41 @@ class Level
         end loop
     end generateMaze
     
+    proc rg
+        for i : 0 .. upper (mapTiles)
+            mapTiles (i) := 2#1111
+        end for
+            
+        % Generate the maze nodes
+        for i : 0 .. upper (mapNodes)
+            const tileX : int := (i mod width)
+            const tileY : int := (i div width)
+            
+            mapNodes (i) -> tileX := tileX
+            mapNodes (i) -> tileY := tileY
+            mapNodes (i) -> visited := false
+        end for
+    
+        generateMaze (0, mapNodes(0))
+        
+        % Knock down a few walls
+        for i : 1 .. 13
+            var tx, ty, dir : int
+            % Don't select from the edges
+            tx := Rand.Int (1, width - 2)
+            ty := Rand.Int (1, height - 2)
+            dir := Rand.Int (0, 3)
+            
+            var xOff := offsets ((dir + 1) mod 4)
+            var yOff := offsets (dir)
+            
+            % Only knock down edges that don't form the boundary
+            if inBounds (tx + xOff, ty + yOff) then
+                clearEdge (tx, ty, dir)
+            end if
+        end for
+    end rg
+    
     /**
     * Initializes the level
     *
@@ -158,7 +218,7 @@ class Level
         end for
             
         % Set up all the edges 
-        for i : 0 .. upper (mapTiles)
+        /*for i : 0 .. upper (mapTiles)
             mapTiles (i) := 2#1111
         end for
             
@@ -186,44 +246,18 @@ class Level
             var yOff := offsets (dir)
             
             % Only knock down edges that don't form the boundary
-            if getEdges (tx + xOff, ty + yOff) not= -1 then
+            if inBounds (tx + xOff, ty + yOff) then
                 clearEdge (tx, ty, dir)
             end if
-        end for
+        end for*/
+        rg ()
     end initLevel
     
-    proc rg
-        for i : 0 .. upper (mapTiles)
-            mapTiles (i) := 2#1111
-        end for
-            
-        % Generate the maze nodes
+    proc freeLevel ()
         for i : 0 .. upper (mapNodes)
-            const tileX : int := (i mod width)
-            const tileY : int := (i div width)
-            
-            mapNodes (i) -> tileX := tileX
-            mapNodes (i) -> tileY := tileY
-            mapNodes (i) -> visited := false
+            free mapNodes(i)
         end for
-    
-        generateMaze (0, mapNodes(0))
-        
-        for i : 1 .. 10
-            var tx, ty, dir : int
-            tx := Rand.Int (0, width)
-            ty := Rand.Int (0, height)
-            dir := Rand.Int (0, 3)
-            
-            var xOff := offsets ((dir + 1) mod 4)
-            var yOff := offsets (dir)
-            
-            % Only knock down edges that don't form the boundary
-            if getEdges (tx + xOff, ty + yOff) not= -1 then
-                clearEdge (tx, ty, dir)
-            end if
-        end for
-    end rg
+    end freeLevel
     
     /**
     * Sets the level draw offset from the bottom right corner
