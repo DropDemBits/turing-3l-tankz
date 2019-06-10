@@ -3,14 +3,16 @@ unit
 class Level
     export
         % Instance-only
-        initLevel, freeLevel, render, update, setOffset, getEdges, inBounds, drawEdges,
+        initLevel, freeLevel, render, update, setOffset, getEdges, inBounds, drawEdges, drawEdge,
         % Constants
-        TILE_SIZE, DIR_RIGHT, DIR_UP, DIR_LEFT, DIR_DOWN, EDGE_RIGHT, EDGE_UP, EDGE_LEFT, EDGE_DOWN
+        TILE_SIZE, LINE_RADIUS,
+         DIR_RIGHT,  DIR_UP,  DIR_LEFT,  DIR_DOWN,
+        EDGE_RIGHT, EDGE_UP, EDGE_LEFT, EDGE_DOWN
     
     const TILE_SIZE : int := 64
     
     % Line radius
-    const RADIUS : int := 1
+    const LINE_RADIUS : int := 1
     
     % Ordinal direction constants
     const DIR_RIGHT : int := 0
@@ -109,11 +111,29 @@ class Level
         end if
         
         % Draw edges
-        if (edges & EDGE_RIGHT) not= 0 then drawfillbox (  endX + RADIUS, startY - RADIUS,   endX - RADIUS,   endY - RADIUS, clr) end if
-        if (edges & EDGE_UP   ) not= 0 then drawfillbox (  endX + RADIUS,   endY + RADIUS, startX + RADIUS,   endY - RADIUS, clr) end if
-        if (edges & EDGE_LEFT ) not= 0 then drawfillbox (startX - RADIUS,   endY + RADIUS, startX + RADIUS, startY + RADIUS, clr) end if
-        if (edges & EDGE_DOWN ) not= 0 then drawfillbox (startX - RADIUS, startY - RADIUS,   endX - RADIUS, startY + RADIUS, clr) end if
+        if (edges & EDGE_RIGHT) not= 0 then drawfillbox (  endX + LINE_RADIUS, startY - LINE_RADIUS,   endX - LINE_RADIUS,   endY - LINE_RADIUS, clr) end if
+        if (edges & EDGE_UP   ) not= 0 then drawfillbox (  endX + LINE_RADIUS,   endY + LINE_RADIUS, startX + LINE_RADIUS,   endY - LINE_RADIUS, clr) end if
+        if (edges & EDGE_LEFT ) not= 0 then drawfillbox (startX - LINE_RADIUS,   endY + LINE_RADIUS, startX + LINE_RADIUS, startY + LINE_RADIUS, clr) end if
+        if (edges & EDGE_DOWN ) not= 0 then drawfillbox (startX - LINE_RADIUS, startY - LINE_RADIUS,   endX - LINE_RADIUS, startY + LINE_RADIUS, clr) end if
     end drawEdges
+    
+    proc drawEdge (tileX, tileY, clr, edges : int)
+        var startX := tileX * TILE_SIZE + round (cameraX)
+        var startY := tileY * TILE_SIZE + round (cameraY)
+        var endX := (tileX + 1) * TILE_SIZE + round (cameraX)
+        var endY := (tileY + 1) * TILE_SIZE + round (cameraY)
+        
+        if edges = -1 then
+            drawfillbox (startX, startY, endX, endY, clr)
+            return
+        end if
+        
+        % Draw edges
+        if (edges & EDGE_RIGHT) not= 0 then drawfillbox (  endX + LINE_RADIUS, startY - LINE_RADIUS,   endX - LINE_RADIUS,   endY - LINE_RADIUS, clr) end if
+        if (edges & EDGE_UP   ) not= 0 then drawfillbox (  endX + LINE_RADIUS,   endY + LINE_RADIUS, startX + LINE_RADIUS,   endY - LINE_RADIUS, clr) end if
+        if (edges & EDGE_LEFT ) not= 0 then drawfillbox (startX - LINE_RADIUS,   endY + LINE_RADIUS, startX + LINE_RADIUS, startY + LINE_RADIUS, clr) end if
+        if (edges & EDGE_DOWN ) not= 0 then drawfillbox (startX - LINE_RADIUS, startY - LINE_RADIUS,   endX - LINE_RADIUS, startY + LINE_RADIUS, clr) end if
+    end drawEdge
     
     % Generates the map starting at the given node
     proc generateMaze (currIdx : int, currNode : ^MazeNode)
@@ -182,7 +202,7 @@ class Level
         generateMaze (0, mapNodes(0))
         
         % Knock down a few walls
-        for i : 1 .. 13
+        for i : 1 .. ceil ((width * height) * 0.10)
             var tx, ty, dir : int
             % Don't select from the edges
             tx := Rand.Int (1, width - 2)

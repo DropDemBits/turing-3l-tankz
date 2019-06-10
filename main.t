@@ -15,7 +15,7 @@
 import UI in "lib/ui_util.tu",
 
 % Main classes
-Map in "classes/map.t"
+Match in "classes/match.t"
 
 
 put "3L Tankz: Work in Progress"
@@ -32,9 +32,24 @@ var ups, fps : int := 0
 var lastUps, lastFps : int := 0
 var frametimer : int := 0
 
-% The game map
-var map : ^Map
+% The current game match
+var match : ^Match
 
+proc beginMatch ()
+    var width, height : int
+    
+    width := Rand.Int (3, 15)
+    height := Rand.Int (5, 9)
+    
+    % Initialize the match
+    new Match, match
+    match -> initMatch (width, height)
+    
+    % Add the players
+    match -> addPlayer (40,         0, 0, 'i', 'j', 'k', 'l', 'u')
+    match -> addPlayer (54, width - 1, 0, 'w', 'a', 's', 'd', 'q')
+    match -> addPlayer (48, width - 1, height - 1, KEY_UP_ARROW, KEY_LEFT_ARROW, KEY_DOWN_ARROW, KEY_RIGHT_ARROW, KEY_CTRL)
+end beginMatch
 
 proc processInput ()
     var keys : array char of boolean
@@ -42,11 +57,19 @@ proc processInput ()
 end processInput
 
 proc update (elapsed : int)
-    map -> update (elapsed)
+    match -> update (elapsed)
+    
+    if match -> matchEnded then
+        % Restart the match
+        match -> freeMatch ()
+        free Match, match
+        
+        beginMatch ()
+    end if
 end update
 
 proc render (pt : real)
-    map -> render (pt)
+    match -> render (pt)
 
     if Time.Elapsed - frametimer > 1000 then
         lastUps := ups
@@ -64,14 +87,7 @@ proc render (pt : real)
 end render
 
 proc initGame ()
-    % Initialize the map
-    new Map, map
-    map -> initMap (11, 8)
-    
-    % Add the players
-    map -> addPlayer (40, 0, 0,  'i', 'j', 'k', 'l', 'u')
-    map -> addPlayer (54, 10, 0, 'w', 'a', 's', 'd', 'q')
-    map -> addPlayer (48, 10, 4, KEY_UP_ARROW, KEY_LEFT_ARROW, KEY_DOWN_ARROW, KEY_RIGHT_ARROW, KEY_CTRL)
+    beginMatch ()
 end initGame
 
 proc run ()
