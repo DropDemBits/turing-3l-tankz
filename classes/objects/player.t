@@ -4,6 +4,8 @@ class PlayerObject
     export
         % Constants %
         BARREL_OFFSET, BARREL_LENGTH,
+        % Exported variables %
+        var playerID,
         % Setters %
         setInputScheme, setColour, clearPendingShot,
         % Getters %
@@ -55,6 +57,10 @@ class PlayerObject
     % is updated in the "update" method
     % objectAABB is used for quick overlap rejection, and is also updated in the
     % "update" method
+    %%         End note         %%
+    
+    % Player id of this player
+    var playerID : int := 0
     
     var cooldown : real := 1000
     

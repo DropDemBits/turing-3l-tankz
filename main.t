@@ -15,7 +15,8 @@
 import UI in "lib/ui_util.tu",
 
 % Main classes
-Match in "classes/match.t"
+Match in "classes/match.t",
+PersistentData in "classes/persistent.t"
 
 
 put "3L Tankz: Work in Progress"
@@ -35,6 +36,10 @@ var frametimer : int := 0
 % The current game match
 var match : ^Match
 
+% Current scores of all players
+var playerWins : array 0 .. 63 of int
+
+
 proc beginMatch ()
     var width, height : int
     
@@ -46,9 +51,9 @@ proc beginMatch ()
     match -> initMatch (width, height)
     
     % Add the players
-    match -> addPlayer (40,         0, 0, 'i', 'j', 'k', 'l', 'u')
-    match -> addPlayer (54, width - 1, 0, 'w', 'a', 's', 'd', 'q')
-    match -> addPlayer (48, width - 1, height - 1, KEY_UP_ARROW, KEY_LEFT_ARROW, KEY_DOWN_ARROW, KEY_RIGHT_ARROW, KEY_CTRL)
+    match -> addPlayer (0, 40,         0, 0, 'i', 'j', 'k', 'l', 'u')
+    match -> addPlayer (1, 54, width - 1, 0, 'w', 'a', 's', 'd', 'q')
+    match -> addPlayer (2, 48, width - 1, height - 1, KEY_UP_ARROW, KEY_LEFT_ARROW, KEY_DOWN_ARROW, KEY_RIGHT_ARROW, KEY_CTRL)
 end beginMatch
 
 proc processInput ()
@@ -60,6 +65,11 @@ proc update (elapsed : int)
     match -> update (elapsed)
     
     if match -> matchEnded then
+        % Add to the winning player's wins
+        if match -> winningPlayer not= -1 then
+            playerWins (match -> winningPlayer) += 1
+        end if
+    
         % Restart the match
         match -> freeMatch ()
         free Match, match
@@ -69,7 +79,19 @@ proc update (elapsed : int)
 end update
 
 proc render (pt : real)
+    % Draw the match
     match -> render (pt)
+    
+    % Draw the player scores
+    locate (1, 1)
+    put "Wins:" ..
+    locate (whatrow + 1, 1)
+    
+    for i : 0 .. 3
+        put "Player ", (i + 1), ": ", playerWins (i) : 3 ..
+        locate (whatrow + 1, 1)
+    end for
+    
 
     if Time.Elapsed - frametimer > 1000 then
         lastUps := ups
@@ -88,6 +110,11 @@ end render
 
 proc initGame ()
     beginMatch ()
+    
+    % Clear all of the player wins
+    for i : 0 .. upper (playerWins)
+        playerWins (i) := 0
+    end for
 end initGame
 
 proc run ()

@@ -7,7 +7,7 @@ class Match
         PlayerObject in "objects/player.t",
         BulletObject in "objects/bullet.t"
     export
-        matchEnded,
+        matchEnded, winningPlayer,
         initMatch, freeMatch, render, update,
         addPlayer
     
@@ -35,6 +35,9 @@ class Match
     var endTimer : real := END_COUNTDOWN
     % If the match has ended or not
     var matchEnded : boolean := false
+    % The player that won the match. Is -1 if no one won
+    var winningPlayer : int := -1
+    
     
     % Current camera position. Affected by shake
     var cameraX, cameraY : real := 0
@@ -84,7 +87,7 @@ class Match
     end freeMatch
     
     
-    proc addPlayer (base_colour, tileX, tileY : int, f, l, d, r, s : char)
+    proc addPlayer (id, base_colour, tileX, tileY : int, f, l, d, r, s : char)
         if not level -> inBounds (tileX, tileY) or nextFree > upper (players) then
             % Outside of bounds or no slots
             return
@@ -99,6 +102,7 @@ class Match
         player -> setInputScheme (f, l, d, r, s)
         player -> setColour (base_colour)
         player -> setLevel (level)
+        player -> playerID := id
         
         players (nextFree) := player
         nextFree += 1
@@ -119,6 +123,7 @@ class Match
         % Initialize the bullet
         bullet -> initObj (offX + owner -> posX, offY + owner -> posY, owner -> angle)
         bullet -> setLevel (level)
+        bullet -> setOwner (owner)
         
         % Find a free bullet slot
         var bulletSlot : int := -1
@@ -163,6 +168,18 @@ class Match
             if endTimer < 0 then
                 % Match has ended
                 matchEnded := true
+                
+                % Search for the winning player
+                winningPlayer := -1
+                
+                for i : 0 .. upper (players)
+                    if players (i) not= nil and not players (i) -> isDead then
+                        % Winning player found
+                        winningPlayer := players (i) -> playerID
+                        exit
+                    end if
+                end for
+                
                 return
             end if
         end if
@@ -201,7 +218,7 @@ class Match
                     for ply : 0 .. upper (players)
                         exit when players (ply) = nil
                         
-                        if not players (ply) -> isDead
+                        if not players (ply) -> isDead and players (ply) not= activeBullets (i) -> getOwner ()
                             and players (ply) -> overlaps (activeBullets (i)) then
                             % Bullet collided with player, kill them and the
                             % bullet
@@ -251,7 +268,7 @@ class Match
         
         % Draw the match end countdown
         if livingPlayers <= 1 then
-            locate (1, 1)
+            locate (5, 1)
             put (endTimer / 1000) ..
         end if
     end render

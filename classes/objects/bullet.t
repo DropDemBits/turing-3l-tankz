@@ -2,6 +2,8 @@
 unit
 class BulletObject
     inherit Object in "object.t"
+    import PlayerObject in "player.t"
+    export setOwner, getOwner, canKillOwner
     
     const RADIUS : real := 5
     const BULLET_BOX : array 1 .. 4, 1 .. 2 of real := init (
@@ -14,6 +16,32 @@ class BulletObject
     % Current lifespan of the bullet. Will live for 30 seconds
     var lifespan : real := 30000
     
+    % Owning player of this bullet
+    var owner_ : ^PlayerObject
+    % Whether the bullet can kill its owner
+    var canKillOwner_ : boolean := false
+    
+    
+    /**
+    * Sets the owner of this bullet
+    */
+    proc setOwner (owner__ : ^PlayerObject)
+        owner_ := owner__
+    end setOwner
+    
+    /**
+    * Gets the owner of this bullet
+    */
+    fcn getOwner () : ^PlayerObject
+        result owner_
+    end getOwner
+    
+    /**
+    * If this bullet can kill its owner
+    */
+    fcn canKillOwner () : boolean
+        result canKillOwner_
+    end canKillOwner
     
     body proc onInitObj
         % Set up speed
@@ -38,8 +66,11 @@ class BulletObject
             return
         end if
     
+        % Update position
         posX += speed * cosd (angle)
         posY += speed * sind (angle)
+        
+        % Update owner kill status
         
         % Check for any collisions
         var atTX, atTY : int
