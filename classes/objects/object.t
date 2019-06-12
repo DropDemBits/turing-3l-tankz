@@ -2,8 +2,18 @@
 % Root class for all updatable objects
 unit
 class Object
-    import Level in "../level.t"
-    export update, render, initObj, setLevel, setDead, posX, posY, angle, var speed, isDead, isRemoved, overlaps, objectAABB, objectBox
+    import
+        MathUtil in "../../lib/math_util.tu",
+        Level in "../level.t"
+    export
+        % Core methods %
+        update, render, initObj,
+        % Setters %
+        setLevel, setDead, setPosition, setAngle, setSpeed, setAccel,
+        % Getters %
+        posX, posY, angle, speed, acceleration, level, isDead, isRemoved, overlaps,
+        % Local export %
+        objectAABB, objectBox
 
     % Position & Orientation
     var posX, posY : real := 0
@@ -18,9 +28,9 @@ class Object
     var angularAccel : real := 0
     
     % If the object is dead, but is not enqueued for removal
-    var isDead : boolean := false
+    var isDead_ : boolean := false
     % If the object will be removed
-    var isRemoved : boolean := false
+    var isRemoved_ : boolean := false
     
     % The level the object coexists with
     var level : ^Level := nil
@@ -30,51 +40,6 @@ class Object
     % Axis-align object bounding box. Used for quick overlap rejection
     var objectAABB : array 1 .. 2, 1 .. 2 of real := init (0, 0, 0, 0)
     
-    
-    %%% Math Functions (Move to MathUtil) %%%
-    /**
-    * Converts the given cartesian coordinate into a unique angle, in degrees
-    */
-    fcn atan2d (y, x : real) : real
-        % Cover -+90 branches
-        if x = 0 then
-            % Return 90 * sign (y) (defines x = 0, y = 0 to be 0)
-            result sign (y) * 90
-        end if
-        
-        % Cover general branch
-        if x > 0 then
-            % Normal arctangent
-            result arctand (y / x)
-        end if
-        
-        % Cover negative x branch
-        if y < 0 then
-            result arctand (y / x) + 180
-        else
-            result arctand (y / x) - 180
-        end if
-    end atan2d
-    
-    /**
-    * Returns the smaller real
-    */
-    fcn min_real (a, b : real) : real
-        if a < b then
-            result a
-        end if
-        result b
-    end min_real
-    
-    /**
-    * Returns the bigger real
-    */
-    fcn max_real (a, b : real) : real
-        if a > b then
-            result a
-        end if
-        result b
-    end max_real
     
     % Updates the object
     deferred proc update (elapsed : real)
@@ -90,9 +55,17 @@ class Object
     end onInitObj
     
     body proc setDead ()
-        isDead := true
-        isRemoved := true
+        isDead_ := true
+        isRemoved_ := true
     end setDead
+    
+    fcn isDead () : boolean
+        result isDead_
+    end isDead
+    
+    fcn isRemoved () : boolean
+        result isRemoved_
+    end isRemoved
     
     /**
     * Initializes the object
@@ -115,6 +88,42 @@ class Object
     proc setLevel (level_ : ^Level)
         level := level_
     end setLevel
+    
+    /**
+    * Sets the position of this object
+    */
+    proc setPosition (x, y : real)
+        posX := x
+        posY := y
+    end setPosition
+    
+    proc setAngle (a : real)
+        angle := a
+    end setAngle
+    
+    /**
+    * Sets the speeds of this object
+    *
+    * Parameters:
+    * linear:   Linear speed of the object
+    * angular:  Angular speed of the object
+    */
+    proc setSpeed (linear, angular : real)
+        speed := linear
+        angularVel := angular
+    end setSpeed
+    
+    /**
+    * Sets the accelerations of this object
+    *
+    * Parameters:
+    * linear:   Linear acceleration of the object
+    * angular:  Angular acceleration of the object
+    */
+    proc setAccel (linear, angular : real)
+        acceleration := linear
+        angularAccel := angular
+    end setAccel
     
     %%% Utilitiy %%%
     /**
@@ -142,26 +151,26 @@ class Object
             label Level.DIR_UP:
                 % 0,1 -> 1,1
                 edgeX0 := tileX + 0
-                edgeY0 := tileY + 1 - 1 / Level.TILE_SIZE
+                edgeY0 := tileY + 1 - Level.LINE_RADIUS / Level.TILE_SIZE
                 edgeX1 := tileX + 1
-                edgeY1 := tileY + 1 - 1 / Level.TILE_SIZE
+                edgeY1 := tileY + 1 - Level.LINE_RADIUS / Level.TILE_SIZE
             label Level.DIR_DOWN:
                 % 0,0 -> 1,0
                 edgeX0 := tileX + 0
-                edgeY0 := tileY + 0 + 1 / Level.TILE_SIZE
+                edgeY0 := tileY + 0 + Level.LINE_RADIUS / Level.TILE_SIZE
                 edgeX1 := tileX + 1
-                edgeY1 := tileY + 0 + 1 / Level.TILE_SIZE
+                edgeY1 := tileY + 0 + Level.LINE_RADIUS / Level.TILE_SIZE
             label Level.DIR_LEFT:
                 % 0,0 -> 0,1
-                edgeX0 := tileX + 0 + 1 / Level.TILE_SIZE
+                edgeX0 := tileX + 0 + Level.LINE_RADIUS / Level.TILE_SIZE
                 edgeY0 := tileY + 0
-                edgeX1 := tileX + 0 + 1 / Level.TILE_SIZE
+                edgeX1 := tileX + 0 + Level.LINE_RADIUS / Level.TILE_SIZE
                 edgeY1 := tileY + 1
             label Level.DIR_RIGHT:
                 % 1,0 -> 1,1
-                edgeX0 := tileX + 1 - 1 / Level.TILE_SIZE
+                edgeX0 := tileX + 1 - Level.LINE_RADIUS / Level.TILE_SIZE
                 edgeY0 := tileY + 0
-                edgeX1 := tileX + 1 - 1 / Level.TILE_SIZE
+                edgeX1 := tileX + 1 - Level.LINE_RADIUS / Level.TILE_SIZE
                 edgeY1 := tileY + 1
             end case
             
@@ -198,7 +207,7 @@ class Object
     * The box's coordinates are assumed to have been transformed into world
     * space
     *
-    * Overlap checking is done via Seperated Axis Theorem, which states that
+    * Overlap checking is done via Seperating Axis Theorem, which states that
     * two shapes will not intersect if a line (an axis) can be drawn in
     * between them
     *
@@ -213,9 +222,9 @@ class Object
     *   ForEach point of both shapes:
     *       Project the point onto the axis
     *       Find the minimum and maximum values for the shape
-    *   If the minimum and maximum values of each shape overlap then
-    *       Done, Overlap was detected
-    * Done, no overlap was detected
+    *   If the minimum and maximum values of each shape don't overlap then
+    *       Done, no overlap was detected
+    * Done, overlap was detected
     *
     * Optimizations:
     * Since we are always checking rectangles, there are a few assumtions we can
@@ -263,12 +272,12 @@ class Object
                 proj_box2 := box2 (point, 1) * axis (i, 1) + box2 (point, 2) * axis (i, 2)
                 
                 % Find minimums of both shapes
-                min_box1 := min_real (min_box1, proj_box1)
-                min_box2 := min_real (min_box2, proj_box2)
+                min_box1 := min_f (min_box1, proj_box1)
+                min_box2 := min_f (min_box2, proj_box2)
                 
                 % Find maximums of both shapes
-                max_box1 := max_real (max_box1, proj_box1)
-                max_box2 := max_real (max_box2, proj_box2)
+                max_box1 := max_f (max_box1, proj_box1)
+                max_box2 := max_f (max_box2, proj_box2)
             end for
             
             % Check if there's any overlap

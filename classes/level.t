@@ -4,15 +4,17 @@ class Level
     export
         % Instance-only
         initLevel, freeLevel, render, update, setOffset, getEdges, inBounds, drawEdges, drawEdge,
+        cameraX, cameraY,
         % Constants
         TILE_SIZE, LINE_RADIUS,
          DIR_RIGHT,  DIR_UP,  DIR_LEFT,  DIR_DOWN,
         EDGE_RIGHT, EDGE_UP, EDGE_LEFT, EDGE_DOWN
     
-    const TILE_SIZE : int := 64
+    % Tile size in pixels
+    const TILE_SIZE : int := 68
     
     % Line radius
-    const LINE_RADIUS : int := 1
+    const LINE_RADIUS : int := 2
     
     % Ordinal direction constants
     const DIR_RIGHT : int := 0

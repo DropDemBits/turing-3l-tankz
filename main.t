@@ -16,7 +16,8 @@ import UI in "lib/ui_util.tu",
 
 % Main classes
 Match in "classes/match.t",
-PersistentData in "classes/persistent.t"
+PersistentData in "classes/persistent.t",
+InputControllers in "classes/input.t"
 
 
 put "3L Tankz: Work in Progress"
@@ -37,6 +38,7 @@ var frametimer : int := 0
 var match : ^Match
 
 % Current scores of all players
+var inputs : array 0 .. 63 of ^InputController
 var playerWins : array 0 .. 63 of int
 
 
@@ -51,14 +53,18 @@ proc beginMatch ()
     match -> initMatch (width, height)
     
     % Add the players
-    match -> addPlayer (0, 40,         0, 0, 'i', 'j', 'k', 'l', 'u')
-    match -> addPlayer (1, 54, width - 1, 0, 'w', 'a', 's', 'd', 'q')
-    match -> addPlayer (2, 48, width - 1, height - 1, KEY_UP_ARROW, KEY_LEFT_ARROW, KEY_DOWN_ARROW, KEY_RIGHT_ARROW, KEY_CTRL)
+    match -> addPlayer (0, 40,         0, 0,          inputs (0))
+    match -> addPlayer (1, 54, width - 1, 0,          inputs (1))
+    match -> addPlayer (2, 48, width - 1, height - 1, inputs (2))
+    match -> addPlayer (3, 44,         0, height - 1, inputs (3))
 end beginMatch
 
 proc processInput ()
-    var keys : array char of boolean
-    Input.KeyDown (keys)
+    for i : 0 .. upper (inputs)
+        if inputs (i) not= nil then
+            InputController (inputs (i)).update ()
+        end if
+    end for
 end processInput
 
 proc update (elapsed : int)
@@ -82,7 +88,7 @@ proc render (pt : real)
     % Draw the match
     match -> render (pt)
     
-    % Draw the player scores
+    % Draw the player scores (temp)
     locate (1, 1)
     put "Wins:" ..
     locate (whatrow + 1, 1)
@@ -92,7 +98,7 @@ proc render (pt : real)
         locate (whatrow + 1, 1)
     end for
     
-
+    % Update frames & updates per second
     if Time.Elapsed - frametimer > 1000 then
         lastUps := ups
         lastFps := fps
@@ -102,6 +108,7 @@ proc render (pt : real)
         frametimer := Time.Elapsed
     end if
     
+    % Print out FPS & UPS
     locate (maxrow, 1)
     put lastUps, " ", lastFps..
     
@@ -109,6 +116,26 @@ proc render (pt : real)
 end render
 
 proc initGame ()
+    Mouse.ButtonChoose("multibutton")
+
+    % Setup all of the inputs
+    for i : 0 .. upper (inputs)
+        inputs (i) := nil
+    end for
+    
+    % Setup keyboard input controllers
+    for i : 0 .. 2
+        new KeyboardController, inputs (i)
+        KeyboardController (inputs (i)).initController ()
+        KeyboardController (inputs (i)).setScheme (i + 1)
+    end for
+    
+    % Setup mouse controller
+    new MouseController, inputs (3)
+    MouseController (inputs (3)).initController ()
+    MouseController (inputs (3)).setScheme (MOUSE_SCHEME_LEFT)
+
+    % Setup the match
     beginMatch ()
     
     % Clear all of the player wins
@@ -154,6 +181,9 @@ proc run ()
         % Draw everything (calculate update interpolation also)
         render (catchup / (UPDATE_QUANTUM * 1000))
         fps += 1
+        
+        %loop exit when hasch end loop
+        %Input.Flush ()
         
         % Handle graceful exit
         exit when not isRunning

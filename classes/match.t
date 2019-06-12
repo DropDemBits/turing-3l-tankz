@@ -3,6 +3,7 @@
 unit
 class Match
     import
+        InputControllers in "input.t",
         Level in "level.t",
         PlayerObject in "objects/player.t",
         BulletObject in "objects/bullet.t"
@@ -13,6 +14,10 @@ class Match
     
     % 3 seconds to the end of a match
     const END_COUNTDOWN : int := 4000
+    
+    % Shaking related constants
+    const SHAKE_INTENSITY : real := 50
+    const SHAKE_DECAY : real := 0.9
     
     % Next free index into the player list
     var nextFree : int := 0
@@ -41,6 +46,10 @@ class Match
     
     % Current camera position. Affected by shake
     var cameraX, cameraY : real := 0
+    % If the screen should be shaken
+    var shakeScreen_ : boolean := false
+    % Intensity of the shake
+    var shakeIntensity_ : real := 0
     
     /**
     * Initializes the match and other things
@@ -87,7 +96,7 @@ class Match
     end freeMatch
     
     
-    proc addPlayer (id, base_colour, tileX, tileY : int, f, l, d, r, s : char)
+    proc addPlayer (id, base_colour, tileX, tileY : int, controller : ^InputController)
         if not level -> inBounds (tileX, tileY) or nextFree > upper (players) then
             % Outside of bounds or no slots
             return
@@ -99,11 +108,12 @@ class Match
         
         % Setup the player object
         player -> initObj (tileX + 0.5, tileY + 0.5, 360 * Rand.Real ())
-        player -> setInputScheme (f, l, d, r, s)
         player -> setColour (base_colour)
         player -> setLevel (level)
         player -> playerID := id
+        controller -> setPlayer (player)
         
+        % Add to the player list
         players (nextFree) := player
         nextFree += 1
         
@@ -117,8 +127,8 @@ class Match
         
         % Calculate offset to barrel end
         var offX, offY : real
-        offX := (cosd(owner -> angle) * (owner -> BARREL_LENGTH + 4)) / Level.TILE_SIZE
-        offY := (sind(owner -> angle) * (owner -> BARREL_LENGTH + 4)) / Level.TILE_SIZE
+        offX := (cosd(owner -> angle) * (owner -> BARREL_LENGTH - 4)) / Level.TILE_SIZE
+        offY := (sind(owner -> angle) * (owner -> BARREL_LENGTH - 4)) / Level.TILE_SIZE
         
         % Initialize the bullet
         bullet -> initObj (offX + owner -> posX, offY + owner -> posY, owner -> angle)
@@ -173,7 +183,7 @@ class Match
                 winningPlayer := -1
                 
                 for i : 0 .. upper (players)
-                    if players (i) not= nil and not players (i) -> isDead then
+                    if players (i) not= nil and not players (i) -> isDead () then
                         % Winning player found
                         winningPlayer := players (i) -> playerID
                         exit
@@ -192,7 +202,7 @@ class Match
             exit when players (i) = nil
             
             % Don't update dead players
-            if not players (i) -> isDead then
+            if not players (i) -> isDead () then
                 players (i) -> update (elapsed)
                 
                 % Check if bullet fire is requested
@@ -211,14 +221,15 @@ class Match
         for i : 0 .. upper (activeBullets)
             if activeBullets (i) not= nil then
                 % Don't update dead bullets
-                if not activeBullets (i) -> isDead then
+                if not activeBullets (i) -> isDead () then
                     activeBullets (i) -> update (elapsed)
                     
                     % Check if we've collided with another player
                     for ply : 0 .. upper (players)
                         exit when players (ply) = nil
                         
-                        if not players (ply) -> isDead and players (ply) not= activeBullets (i) -> getOwner ()
+                        if  not players (ply) -> isDead ()
+                            and (players (ply) not= activeBullets (i) -> getOwner () or activeBullets (i) -> canKillOwner ())
                             and players (ply) -> overlaps (activeBullets (i)) then
                             % Bullet collided with player, kill them and the
                             % bullet
@@ -228,6 +239,9 @@ class Match
                             % Decrement the living player count
                             livingPlayers -= 1
                             
+                            % Shake the screen
+                            shakeScreen_ := true
+                            
                             % Done, move on
                             exit
                         end if
@@ -235,40 +249,61 @@ class Match
                 end if
                 
                 % Remove the bullet if it's going to be removed
-                if activeBullets (i) -> isRemoved then
+                if activeBullets (i) -> isRemoved () then
                     free activeBullets (i)
                     activeBullets (i) := nil
                 end if
             end if
         end for
+        
+        % Let the shake intensity decay
+        if shakeIntensity_ > 0.001 then
+            shakeIntensity_ *= SHAKE_DECAY
+        else
+            % Shake is below a visible quantity, stop
+            shakeIntensity_ := 0
+        end if
+        
+        % Start shaking the screen when requested
+        if shakeScreen_ then
+            shakeScreen_ := false
+            
+            % Add on even more shaking
+            shakeIntensity_ += SHAKE_INTENSITY
+        end if
     end update
     
     proc render (partialTicks: real)
+        % Calculate effective camera after camera shake
+        var realCamX, realCamY : real
+        realCamX := cameraX + Rand.Real () * shakeIntensity_
+        realCamY := cameraY + Rand.Real () * shakeIntensity_
+        
+        % Draw the level
+        Level (level).setOffset (realCamX, realCamY)
+        Level (level).render (partialTicks)
+        
         % Draw each player
         for i : 0 .. upper (players)
             exit when players (i) = nil
             
             % Don't draw dead players
-            if not players (i) -> isDead then
-                players (i) -> render (cameraX, cameraY, partialTicks)
+            if not players (i) -> isDead () then
+                players (i) -> render (realCamX, realCamY, partialTicks)
             end if
         end for
         
         % Draw every bullet
         for i : 0 .. upper (activeBullets)
             % Don't draw dead bullets
-            if activeBullets (i) not= nil and not activeBullets (i) -> isDead then
-                activeBullets (i) -> render (cameraX, cameraY, partialTicks)
+            if activeBullets (i) not= nil and not activeBullets (i) -> isDead () then
+                activeBullets (i) -> render (realCamX, realCamY, partialTicks)
             end if
         end for
         
-        % Draw the level
-        Level (level).setOffset (cameraX, cameraY)
-        Level (level).render (partialTicks)
-        
         % Draw the match end countdown
         if livingPlayers <= 1 then
-            locate (5, 1)
+            locate (6, 1)
             put (endTimer / 1000) ..
         end if
     end render

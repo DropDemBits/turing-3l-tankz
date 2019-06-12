@@ -18,7 +18,7 @@ class BulletObject
     
     % Owning player of this bullet
     var owner_ : ^PlayerObject
-    % Whether the bullet can kill its owner
+    % Whether the bullet can kill its owner. It can't initially
     var canKillOwner_ : boolean := false
     
     
@@ -71,6 +71,10 @@ class BulletObject
         posY += speed * sind (angle)
         
         % Update owner kill status
+        if sqrt ((posX - owner_ -> posX) ** 2 + (posY - owner_ -> posY) ** 2) > 0.5 then
+            % Allow the ability to kill the owner after going half tile away
+            canKillOwner_ := true
+        end if
         
         % Check for any collisions
         var atTX, atTY : int
@@ -191,7 +195,7 @@ class BulletObject
     end update
     
     body proc render
-        if isDead then
+        if isDead () then
             return
         end if
         
@@ -199,19 +203,6 @@ class BulletObject
         effX := offX + (posX + speed * cosd (angle) * partialTicks) * Level.TILE_SIZE
         effY := offY + (posY + speed * sind (angle) * partialTicks) * Level.TILE_SIZE
         drawfilloval (round (effX), round (effY), 5, 5, black)
-        
-        /*for i : 1 .. 4
-            var startP, endP : int
-            
-            startP := i
-            endP := (i mod upper (objectBox)) + 1
-            
-            drawline (round (effX + objectBox (startP, 1)),
-                      round (effY + objectBox (startP, 2)),
-                      round (effX + objectBox (endP, 1)),
-                      round (effY + objectBox (endP, 2)),
-                      yellow)
-        end for*/
         
         if offX + posX * Level.TILE_SIZE < 0 or offX + posX * Level.TILE_SIZE > maxx + RADIUS
            or offY + posY * Level.TILE_SIZE < 0 or offY + posY * Level.TILE_SIZE > maxy + RADIUS then

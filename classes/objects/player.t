@@ -3,17 +3,18 @@ class PlayerObject
     inherit Object in "object.t"
     export
         % Constants %
-        BARREL_OFFSET, BARREL_LENGTH,
+        BARREL_OFFSET, BARREL_LENGTH, MOVEMENT_SPEED, ROTATE_SPEED, REVERSE_SPEED,
         % Exported variables %
         var playerID,
         % Setters %
-        setInputScheme, setColour, clearPendingShot,
+        setInputScheme, setColour, setShootingState, clearPendingShot,
         % Getters %
         isShotPending, getBulletID
     
     %%% Internal Constants %%%
     % Movement related
     const MOVEMENT_SPEED : real := 1.25 / Level.TILE_SIZE
+    const REVERSE_SPEED : real := 0.75 / Level.TILE_SIZE
     const ROTATE_SPEED : real := 2
     const MOVEMENT_DECAY : real := 0.9
     const ROTATE_DECAY : real := 0.7
@@ -36,6 +37,8 @@ class PlayerObject
     var isShooting : boolean := false
     % Set if the player has requested to fire a shot
     var shootingRequested : boolean := false
+    % Set while the shot state is in the shooting state
+    var isShootActive : boolean
     % The ID of the bullet to shoot
     var bulletID : int := 0
     
@@ -78,6 +81,10 @@ class PlayerObject
         base_colour := clr
     end setColour
     
+    proc setShootingState (shooting : boolean)
+        isShooting := shooting
+    end setShootingState
+    
     /**
     * Clears the currently pending shot
     */
@@ -109,11 +116,6 @@ class PlayerObject
         effAngle := angle + angularVel * partialTicks
         effX := offX + (posX + speed * cosd (effAngle) * partialTicks) * Level.TILE_SIZE
         effY := offY + (posY + speed * sind (effAngle) * partialTicks) * Level.TILE_SIZE
-    
-        % AABBB
-        %drawfillbox (round (effX + objectAABB (1, 1)), round (effY + objectAABB (1, 2)),
-        %             round (effX + objectAABB (2, 1)), round (effY + objectAABB (2, 2)),
-        %             brown)
     
         % Base
         polyX (1) := round (effX + objectBox (1, 1))
@@ -148,19 +150,6 @@ class PlayerObject
         % Head
         drawfilloval (round(effX), round(effY), HEAD_RADIUS, HEAD_RADIUS, base_colour)
         
-        % Object Box
-        /*for i : 1 .. 4
-            var startP, endP : int
-            
-            startP := i
-            endP := (i mod upper (objectBox)) + 1
-            drawline (round (effX + objectBox (startP, 1)),
-                      round (effY + objectBox (startP, 2)),
-                      round (effX + objectBox (endP, 1)),
-                      round (effY + objectBox (endP, 2)),
-                      yellow)
-        end for*/
-        
         var lookingX, lookingY : real
         lookingX  := cosd (effAngle)
         lookingY  := sind (effAngle)
@@ -174,7 +163,7 @@ class PlayerObject
 
     body proc update
         % Move the player around
-        var keys : array char of boolean
+        /*var keys : array char of boolean
         Input.KeyDown (keys)
         
         % Reset acceleration beforehand
@@ -194,9 +183,20 @@ class PlayerObject
         end if
         if keys (key_right) then
             angularAccel -= ROTATE_SPEED / 20
+        end if*/
+        
+        % Get shooting status        
+        if isShooting and not isShootActive then
+            % A shot is requested
+            shootingRequested := true
+            isShootActive := true
+        elsif not isShooting then
+            % Reset shoot status
+            isShootActive := false
         end if
         
         % Apply acceleration
+        % Accelerations are updated in the appropriate input controller
         speed += acceleration
         angularVel += angularAccel
         
@@ -206,8 +206,8 @@ class PlayerObject
         % Clamp the speed
         if speed > MOVEMENT_SPEED then
             speed := MOVEMENT_SPEED
-        elsif speed < -MOVEMENT_SPEED then
-            speed := -MOVEMENT_SPEED
+        elsif speed < -REVERSE_SPEED then
+            speed := -REVERSE_SPEED
         end if
         
         % Clamp the angular velocity
@@ -222,22 +222,14 @@ class PlayerObject
         posY += speed * sind (angle)
         angle += angularVel
         
-        % Get shooting status
-        var wasShooting : boolean := isShooting
-        isShooting := keys (key_shoot)
-        
-        if cooldown < 0 then
-            %isShooting := true
-            cooldown := 62
-        else
-            cooldown -= elapsed
+        % Wrap the angle around
+        if angle < 360 then
+            angle := 360 + angle
         end if
         
-        if not wasShooting and isShooting then
-            % A shot is requested
-            shootingRequested := true
+        if angle > 360 then
+            angle := angle - 360
         end if
-        
         
         % Update the base points / collision box if needed
         base_dirty := true
@@ -261,10 +253,10 @@ class PlayerObject
             var maxX, maxY : real := minint
             
             for i : 1 .. upper (objectBox, 1)
-                minX := min_real (minX, objectBox (i, 1))
-                minY := min_real (minY, objectBox (i, 2))
-                maxX := max_real (maxX, objectBox (i, 1))
-                maxY := max_real (maxY, objectBox (i, 2))
+                minX := min_f (minX, objectBox (i, 1))
+                minY := min_f (minY, objectBox (i, 2))
+                maxX := max_f (maxX, objectBox (i, 1))
+                maxY := max_f (maxY, objectBox (i, 2))
             end for
             
             % Update the objectAABB
