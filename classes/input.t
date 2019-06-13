@@ -176,6 +176,7 @@ module InputControllers
             
             if mX < 0 or mX > maxx or mY < 0 or mY > maxy then
                 % Don't update if the mouse is outside of the screen
+                player_ -> setAccel (0, 0)
                 return
             end if
             
@@ -188,99 +189,53 @@ module InputControllers
             var effAngle : real := player_ -> angle
             
             if effAngle > 180 then
-                effAngle := -180 + (180 - effAngle)
+                effAngle := effAngle - 360
             end if
             
-            deltaX     := mouseX - (player_ -> posX + cosd (player_ -> angle) * (player_ -> BARREL_LENGTH / Level.TILE_SIZE))
-            deltaY     := mouseY - (player_ -> posY + sind (player_ -> angle) * (player_ -> BARREL_LENGTH / Level.TILE_SIZE))
+            deltaX     := mouseX - (player_ -> posX + cosd (player_ -> angle) * 0 * (player_ -> BARREL_LENGTH / Level.TILE_SIZE))
+            deltaY     := mouseY - (player_ -> posY + sind (player_ -> angle) * 0 * (player_ -> BARREL_LENGTH / Level.TILE_SIZE))
             deltaDist  := sqrt (deltaX ** 2 + deltaY ** 2)
-            deltaAngle := (player_ -> angle - atan2d (deltaY, deltaX))
             
+            deltaAngle := (atan2d (deltaY, deltaX) - effAngle)
             
-            var nangle := atan2d (deltaY, deltaX)
-            
-            locate (8, 1)
-            put deltaAngle ..
-            
-            if nangle > 180 then
-                nangle := -(180 - nangle)
-            elsif nangle < -180 then
-                nangle :=  (180 + nangle)
+            % Map the delta angle to [-180, 180]
+            if deltaAngle > 180 then
+                deltaAngle := deltaAngle - 360
+            elsif deltaAngle < -180 then
+                deltaAngle :=  deltaAngle + 360
             end if
             
-            /*if deltaAngle > 270 then
-               deltaAngle := deltaAngle - 360
-            elsif deltaAngle > 180 then
-                deltaAngle := -(180 - deltaAngle)
-            elsif deltaAngle < -270 then
-               deltaAngle := deltaAngle + 360
-            elsif deltaAngle < -180 then
-                deltaAngle :=  (180 + deltaAngle)
-            end if*/
+            % Stop rotating once we're within a certain distance of the goal
+            if abs (deltaAngle) < 8 then
+                deltaAngle := 0
+            end if
             
-            /*if abs (deltaDist) < 0.0001 then
+            % Stop accelerating once we're within a certain distance of the goal
+            if abs (deltaDist) < 0.4 then
                 deltaDist := 0
             end if
             
-            lastAngle := player_ -> angle
-            destAngle := atan2d (deltaY, deltaX)
-            
-            %if deltaDist > player_ -> MOVEMENT_SPEED / 20 then
-            %    deltaDist := player_ -> MOVEMENT_SPEED / 20
-            %end if
+            % Flip the speed around if the destination is behind us
+            if abs (deltaAngle) > 90 then
+                deltaDist := -deltaDist
+            end if
             
             % Calculate the accelerations
             var lineAccel, angleAccel : real := 0
-            %lineAccel  := deltaDist %clamp_f (deltaDist / 20,  -player_ -> MOVEMENT_SPEED / 20, player_ -> MOVEMENT_SPEED / 20)
-            %angleAccel := clamp_f (deltaAngle / 8, -player_ -> ROTATE_SPEED / 8,   player_ -> ROTATE_SPEED / 8)
-            
-            locate (15, 1)
-            put deltaDist ..
-            
-            if deltaDist > player_ -> MOVEMENT_SPEED * 4 then
-                lineAccel := (player_ -> MOVEMENT_SPEED / 20)
-            elsif deltaDist > 1 and abs(player_ -> acceleration) > 0 then
-                lineAccel := -1 / deltaDist%(player_ -> MOVEMENT_SPEED / 4)
-            else
-                lineAccel := 0
-            end if
-            
-            
-            if deltaAngle > 1 then
-                angleAccel := -player_ -> ROTATE_SPEED / 8
-            elsif deltaAngle < -1 then
-                angleAccel := +player_ -> ROTATE_SPEED / 8
-            else
-                angleAccel := 0
-            end if
-            
-            locate (9, 1)
-            put deltaAngle ..
-            
-            %put deltaX, " ", deltaY, " ", deltaDist
-            
-            % Set the acceleration to 0 if the delta is less than some epsilon
-            if abs (deltaDist) < 0.01 then
-                lineAccel := 0
-            end if
-            if abs (deltaAngle) < 0.01 then
-                angleAccel := 0
-            end if
+            lineAccel  := clamp_f (deltaDist / 20,  -player_ -> MOVEMENT_SPEED / 20, player_ -> MOVEMENT_SPEED / 20)
+            angleAccel := clamp_f (deltaAngle, -player_ -> ROTATE_SPEED / 8,   player_ -> ROTATE_SPEED / 8)
             
             % Apply the accelerations
-            if mouseButton = 001 then
-                player_ -> setAccel ((player_ -> MOVEMENT_SPEED / 20), angleAccel)
-            elsif mouseButton = 100 then
-                player_ -> setAccel (-(player_ -> MOVEMENT_SPEED / 20), angleAccel)
-            else
-                player_ -> setAccel (0, angleAccel)
-            end if*/
+            % Initially only apply rotation acceleration
+            player_ -> setAccel (0, angleAccel)
             
-            %player_ -> setPosition (
-            %    lerp (player_ -> posX, mouseX, player_ -> MOVEMENT_SPEED),
-            %    lerp (player_ -> posY, mouseY, player_ -> MOVEMENT_SPEED))
+            if mouseButton = 100 then
+                % Speed along once the mouse button is down
+                player_ -> setAccel (lineAccel, angleAccel)
+            end if
             
-            player_ -> setAngle (lerp (player_ -> angle, nangle, player_ -> ROTATE_SPEED / 20))
+            % Update the shooting state
+            player_ -> setShootingState (mouseButton = 1)
         end update
     end MouseController
     

@@ -16,6 +16,9 @@ class BulletObject
     % Current lifespan of the bullet. Will live for 30 seconds
     var lifespan : real := 30000
     
+    % Last collision checkss done by this bullet
+    var lastCollideChecks_ : int := 0
+    
     % Owning player of this bullet
     var owner_ : ^PlayerObject
     % Whether the bullet can kill its owner. It can't initially
@@ -91,103 +94,96 @@ class BulletObject
         % Only check for collision if the tile has edges
         locate (1, 1)
         if tileEdges not= -1 then
+            var hasCollided : boolean := false
+        
             % Test for collision against all edges
             var collideEdges := 0
+            var displaceX, displaceY : real := 0
+            var newLastCollided : int := 0
         
             % Test for collision against all edges
             for edge : 0 .. 3
                 % Test only if the edge exists
-                if (tileEdges & (1 shl edge)) not= 0 and
-                    isColliding (atTX + tileOffX, atTY + tileOffY, edge, objectBox) then
-                    
-                    % Fix up the colliding side
-                    %
-                    % Since side collisions at the edges of walls are detected
-                    % as collisions of the orthoganal side (e.g. colliding at
-                    % the left end of a down wall is a down wall collision),
-                    % they need to be fixed to the correct side (e.g colliding
-                    % at the left end of a down wall is now a left wall
-                    % collision
-                    var edgeX, edgeY : real
+                if (tileEdges & (1 shl edge)) not= 0
+                    and isColliding (atTX + tileOffX, atTY + tileOffY, edge, objectBox, displaceX, displaceY) then
                     var realEdge : int := edge
                     
-                    % Edge radius, and some tolerance
-                    const EDGE_RADIUS : real := (Level.LINE_RADIUS + 0.025) / Level.TILE_SIZE
+                    % Only collide with each edge side once
+                    %tileEdges &= ~(1 shl edge)
+                    %tileEdges &= ~(1 shl ((edge + 2) mod 4))
                     
+                    % Test if we've just tested the opposite edge and the edge
+                    % isn't forming the boundary
                     
-                    % Fix up horizontal wall case
-                    /*if edge = Level.DIR_UP or edge = Level.DIR_DOWN then
-                        edgeX := atTX + tileOffX
+                    const offsets : array 0 .. 3 of int := init (0, 1, 0, -1)
+                    var opposite : int := ((edge + 2) mod 4)
+                    var oppOffX : int := offsets ((opposite + 1) mod 4)
+                    var oppOffY : int := offsets (opposite)
+                    var edgOffX : int := offsets ((edge + 1) mod 4)
+                    var edgOffY : int := offsets (edge)
+                    
+                    locate (7, 1)
+                    put intstr (lastCollideChecks_, 4, 2), intstr ((1 shl edge), 4, 2)..
+                    locate (7, 12)
+                    put (lastCollideChecks_ & (1 shl opposite)) not= 0
+                    
+                    if  ((lastCollideChecks_ & (1 shl edge)) = 0
+                          or level -> getEdges (atTX + edgOffX, atTY + edgOffY) = -1)
+                        and
+                          ((lastCollideChecks_ & (1 shl opposite)) = 0
+                          or level -> getEdges (atTX + oppOffX, atTY + oppOffY) = -1) then
                         
-                        if edge = Level.DIR_UP then
-                            edgeY := atTY + tileOffY + 1
-                        else
-                            edgeY := atTY + tileOffY
-                        end if
+                        locate (7, 10)
+                        put "r"..
                         
-                        %locate (1, 1)
-                        %put abs (posX - edgeX), ", ", (posY - edgeY), " ", EDGE_RADIUS..
-                        if abs (posY - edgeY) < EDGE_RADIUS then
-                            
-                            % Collision is within the line's radius, fix it up
-                            if (posX - edgeX) > 0.56 then
-                                realEdge := Level.DIR_RIGHT
-                                posX := posX + (1 - (posX - edgeX)) * 1.1
-                            else
-                                realEdge := Level.DIR_LEFT
-                                posX := posX - (posX - edgeX) * 1.1
-                            end if
-                        end if
+                        % We haven't collided with this edge or the opposite
+                        % edge yet, do the response
+                        %realEdge := opposite
+                    
+                        % Collision detected, reflect the angle
+                        
+                        % Angle will be reflected by breaking it down into the 
+                        % respective x and y components, flipping the sign
+                        % as appropriate, and converting it back into an angle.
+                        var amtX, amtY : real
+                        
+                        % Flip the appropriate sign
+                        case realEdge of
+                        label Level.DIR_RIGHT, Level.DIR_LEFT: amtX := -cosd (angle)     amtY := +sind (angle)
+                        label Level.DIR_UP,    Level.DIR_DOWN: amtX := +cosd (angle)     amtY := -sind (angle)
+                        end case
+                        
+                        % Convert back into an angle
+                        angle := atan2d (amtY, amtX)
+                        
+                        % Displace self out of wall
+                        posX += /*displaceX * 0.1*/ + speed * cosd (angle) * 0.9
+                        posY += /*displaceY * 0.1*/ + speed * sind (angle) * 0.9
                     end if
                     
-                    % Fixup vertical wall case
-                    if edge = Level.DIR_LEFT or edge = Level.DIR_RIGHT then
-                        edgeY := atTY + tileOffY
-                        
-                        if edge = Level.DIR_RIGHT then
-                            edgeX := atTX + tileOffX + 1
-                        else
-                            edgeX := atTX + tileOffX
-                        end if
-                        
-                        %locate (1, 1)
-                        %put abs (posX - edgeX), ", ", (posY - edgeY), " ", EDGE_RADIUS..
-                        if abs (posX - edgeX) < EDGE_RADIUS then
-                            
-                            % Collision is within the line's radius, fix it up
-                            if (posY - edgeY) > 0.56 then
-                                realEdge := Level.DIR_DOWN
-                                posY := posY + (1 - (posY - edgeY)) * 1.1
-                            else
-                                realEdge := Level.DIR_UP
-                                posY := posY - (posY - edgeY) * 1.1
-                            end if
-                        end if
-                    end if*/
-                    
-                    % Collision detected, reflect the angle
-                    
-                    % Angle will be reflected by breaking it down into the 
-                    % respective x and y components, flipping the sign
-                    % as appropriate, and converting it back into an angle.
-                    var amtX, amtY : real
-                    
-                    % Flip the appropriate sign
-                    case realEdge of
-                    label Level.DIR_RIGHT, Level.DIR_LEFT: amtX := -cosd (angle)     amtY := +sind (angle)
-                    label Level.DIR_UP,    Level.DIR_DOWN: amtX := +cosd (angle)     amtY := -sind (angle)
-                    end case
-                    
-                    % Convert back into an angle
-                    angle := atan2d (amtY, amtX)
-                    
-                    % Back out immediately
-                    posX += speed * cosd (angle) * 1.6
-                    posY += speed * sind (angle) * 1.6
+                    % Either collided or technically collided
+                    hasCollided |= true
+                    newLastCollided |= 1 shl edge
                 end if
                 
                 % Check done for this edge
             end for
+            
+            % Update last collision checks
+            % If we have just collided, the current tiles edges are out last checks
+            % Otherwise, it is 0
+            locate (8, 1)
+            put lastCollideChecks_, " "..
+            
+            if hasCollided then
+                lastCollideChecks_ := newLastCollided
+                put "boop "..
+            else
+                lastCollideChecks_ := 0
+                put " not "..
+            end if
+            
+            put intstr (lastCollideChecks_, 4, 2)..
         end if
         
         % Reduce the lifespan
@@ -203,6 +199,19 @@ class BulletObject
         effX := offX + (posX + speed * cosd (angle) * partialTicks) * Level.TILE_SIZE
         effY := offY + (posY + speed * sind (angle) * partialTicks) * Level.TILE_SIZE
         drawfilloval (round (effX), round (effY), 5, 5, black)
+        
+        for i : 1 .. 4
+            var startP, endP : int
+            
+            startP := i
+            endP := (i mod upper (objectBox)) + 1
+            
+            drawline (round (effX + objectBox (startP, 1)),
+                      round (effY + objectBox (startP, 2)),
+                      round (effX + objectBox (endP, 1)),
+                      round (effY + objectBox (endP, 2)),
+                      yellow)
+        end for
         
         if offX + posX * Level.TILE_SIZE < 0 or offX + posX * Level.TILE_SIZE > maxx + RADIUS
            or offY + posY * Level.TILE_SIZE < 0 or offY + posY * Level.TILE_SIZE > maxy + RADIUS then

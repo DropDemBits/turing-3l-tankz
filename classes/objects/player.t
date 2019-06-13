@@ -161,30 +161,7 @@ class PlayerObject
                   black)
     end render
 
-    body proc update
-        % Move the player around
-        /*var keys : array char of boolean
-        Input.KeyDown (keys)
-        
-        % Reset acceleration beforehand
-        acceleration := 0
-        angularAccel := 0
-        
-        % Get new acceleration
-        if keys (key_forward) then
-            acceleration += MOVEMENT_SPEED / 20
-        end if
-        if keys (key_backward) then
-            acceleration -= MOVEMENT_SPEED / 20
-        end if
-        
-        if keys (key_left) then
-            angularAccel += ROTATE_SPEED / 20
-        end if
-        if keys (key_right) then
-            angularAccel -= ROTATE_SPEED / 20
-        end if*/
-        
+    body proc update        
         % Get shooting status        
         if isShooting and not isShootActive then
             % A shot is requested
@@ -267,7 +244,6 @@ class PlayerObject
         end if
         
         % Check for any collisions
-        
         if abs(speed) > 0 or abs (angularVel) > 0 then
             var atTX, atTY : int
             atTX := round (posX - 0.5)
@@ -284,15 +260,22 @@ class PlayerObject
                 if tileEdges not= -1 then
                     % Test for collision against all edges
                     var collideEdges := 0
+                    var displaceX, displaceY : real := 0
             
                     % Test for collision against all edges
                     for edge : 0 .. 3
+                        var dx, dy : real := 0
+                        
                         % Test only if the edge exists
                         if (tileEdges & (1 shl edge)) not= 0 and
-                            isColliding (atTX + tileOffX, atTY + tileOffY, edge, objectBox) then
+                            isColliding (atTX + tileOffX, atTY + tileOffY, edge, objectBox, dx, dy) then
                             
                             % Collision detected
                             collideEdges |= (1 shl edge)
+                            
+                            % Add to the displacement
+                            displaceX += dx
+                            displaceY += dy
                         end if
                         
                         % Check done for this edge
@@ -306,6 +289,10 @@ class PlayerObject
                         % Reverse movements
                         posX -= (speed * cosd(angle)) * 1.5
                         posY -= (speed * sind(angle)) * 1.5
+                        
+                        % Apply displacement
+                        %posX += displaceX * 0.01
+                        %posY += displaceY * 0.01
                         speed := 0
                         
                         % Reverse rotation
