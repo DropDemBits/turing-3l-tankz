@@ -279,6 +279,9 @@ class Match
         realCamX := cameraX + Rand.Real () * shakeIntensity_
         realCamY := cameraY + Rand.Real () * shakeIntensity_
         
+        % Draw the level background
+        drawfillbox (round(realCamX), round(realCamY), round(realCamX + Level (level).width * Level.TILE_SIZE), round(realCamY + Level (level).height * Level.TILE_SIZE), 30)
+        
         % Draw the level
         Level (level).setOffset (realCamX, realCamY)
         Level (level).render (partialTicks)

@@ -4,7 +4,7 @@ class Level
     export
         % Instance-only
         initLevel, freeLevel, render, update, setOffset, getEdges, inBounds, drawEdges, drawEdge,
-        cameraX, cameraY,
+        cameraX, cameraY, width, height,
         % Constants
         TILE_SIZE, LINE_RADIUS,
          DIR_RIGHT,  DIR_UP,  DIR_LEFT,  DIR_DOWN,
@@ -308,7 +308,7 @@ class Level
             const tileY : int := i div width
             
             % Draw map edges
-            drawEdges (tileX, tileY, 16)
+            drawEdges (tileX, tileY, 18)
         end for
     end render
 end Level

@@ -319,6 +319,36 @@ class Object
         var isColliding : boolean := false
         var displaceAmount : real := 0
     
+        % Get edge endpoints
+        var edgeX0, edgeY0, edgeX1, edgeY1 : real
+        
+        case direction of
+        label Level.DIR_UP:
+            % 0,1 -> 1,1
+            edgeX0 := tileX + 0
+            edgeY0 := tileY + 1 - 1 / Level.TILE_SIZE
+            edgeX1 := tileX + 1
+            edgeY1 := tileY + 1 - 1 / Level.TILE_SIZE
+        label Level.DIR_DOWN:
+            % 0,0 -> 1,0
+            edgeX0 := tileX + 0
+            edgeY0 := tileY + 0 + 1 / Level.TILE_SIZE
+            edgeX1 := tileX + 1
+            edgeY1 := tileY + 0 + 1 / Level.TILE_SIZE
+        label Level.DIR_LEFT:
+            % 0,0 -> 0,1
+            edgeX0 := tileX + 0 + 1 / Level.TILE_SIZE
+            edgeY0 := tileY + 0
+            edgeX1 := tileX + 0 + 1 / Level.TILE_SIZE
+            edgeY1 := tileY + 1
+        label Level.DIR_RIGHT:
+            % 1,0 -> 1,1
+            edgeX0 := tileX + 1 - 1 / Level.TILE_SIZE
+            edgeY0 := tileY + 0
+            edgeX1 := tileX + 1 - 1 / Level.TILE_SIZE
+            edgeY1 := tileY + 1
+        end case
+    
         % Check for intersection between box edges:
         for box_side : 1 .. 4
             % Line-Line intersection from:
@@ -330,36 +360,6 @@ class Object
             var sideY0 : real := posY + (box_points (box_side, 2)) / Level.TILE_SIZE
             var sideX1 : real := posX + (box_points ((box_side mod upper (box_points)) + 1, 1)) / Level.TILE_SIZE
             var sideY1 : real := posY + (box_points ((box_side mod upper (box_points)) + 1, 2)) / Level.TILE_SIZE
-        
-            % Get edge endpoints
-            var edgeX0, edgeY0, edgeX1, edgeY1 : real
-            
-            case direction of
-            label Level.DIR_UP:
-                % 0,1 -> 1,1
-                edgeX0 := tileX + 0
-                edgeY0 := tileY + 1 - 1 / Level.TILE_SIZE
-                edgeX1 := tileX + 1
-                edgeY1 := tileY + 1 - 1 / Level.TILE_SIZE
-            label Level.DIR_DOWN:
-                % 0,0 -> 1,0
-                edgeX0 := tileX + 0
-                edgeY0 := tileY + 0 + 1 / Level.TILE_SIZE
-                edgeX1 := tileX + 1
-                edgeY1 := tileY + 0 + 1 / Level.TILE_SIZE
-            label Level.DIR_LEFT:
-                % 0,0 -> 0,1
-                edgeX0 := tileX + 0 + 1 / Level.TILE_SIZE
-                edgeY0 := tileY + 0
-                edgeX1 := tileX + 0 + 1 / Level.TILE_SIZE
-                edgeY1 := tileY + 1
-            label Level.DIR_RIGHT:
-                % 1,0 -> 1,1
-                edgeX0 := tileX + 1 - 1 / Level.TILE_SIZE
-                edgeY0 := tileY + 0
-                edgeX1 := tileX + 1 - 1 / Level.TILE_SIZE
-                edgeY1 := tileY + 1
-            end case
             
             % Check for intersection
             u_a0 := (edgeX1 - edgeX0)*(sideY0 - edgeY0) - (edgeY1 - edgeY0)*(sideX0 - edgeX0)
@@ -395,11 +395,20 @@ class Object
             % Tank side not colliding
         end for
         
+        /*if displaceX not= 0 then
+            drawfillbox
+                   (round (wallBox (1, 1) * Level.TILE_SIZE + level -> cameraX),
+                    round (wallBox (1, 2) * Level.TILE_SIZE + level -> cameraY),
+                    round (wallBox (3, 1) * Level.TILE_SIZE + level -> cameraX),
+                    round (wallBox (3, 2) * Level.TILE_SIZE + level -> cameraY),
+                    40 + direction * 2)
+        end if*/
+        
         % All sides tested
         if not isColliding then
             % No collision detected, don't do anything
-            displaceX := 0
-            displaceY := 0
+            %displaceX := 0
+            %displaceY := 0
             result false
         end if
         

@@ -19,6 +19,9 @@ class BulletObject
     % Last collision checkss done by this bullet
     var lastCollideChecks_ : int := 0
     
+    % Number of collisions bullet has gone through
+    var collisionCount : int := 0
+    
     % Owning player of this bullet
     var owner_ : ^PlayerObject
     % Whether the bullet can kill its owner. It can't initially
@@ -76,7 +79,7 @@ class BulletObject
         % Update owner kill status
         if sqrt ((posX - owner_ -> posX) ** 2 + (posY - owner_ -> posY) ** 2) > 0.5 then
             % Allow the ability to kill the owner after going half tile away
-            canKillOwner_ := true
+            %canKillOwner_ := true
         end if
         
         % Check for any collisions
@@ -98,7 +101,7 @@ class BulletObject
         
             % Test for collision against all edges
             var collideEdges := 0
-            var displaceX, displaceY : real := 0
+            var displaceX, displaceY : real := 1
             var newLastCollided : int := 0
         
             % Test for collision against all edges
@@ -122,23 +125,27 @@ class BulletObject
                     var edgOffX : int := offsets ((edge + 1) mod 4)
                     var edgOffY : int := offsets (edge)
                     
-                    locate (7, 1)
-                    put intstr (lastCollideChecks_, 4, 2), intstr ((1 shl edge), 4, 2)..
-                    locate (7, 12)
-                    put (lastCollideChecks_ & (1 shl opposite)) not= 0
+                    %locate (7, 1)
+                    %put intstr (lastCollideChecks_, 4, 2), intstr ((1 shl edge), 4, 2)..
+                    %locate (7, 12)
+                    %put (lastCollideChecks_ & (1 shl opposite)) not= 0
                     
-                    if  ((lastCollideChecks_ & (1 shl edge)) = 0
-                          or level -> getEdges (atTX + edgOffX, atTY + edgOffY) = -1)
-                        and
-                          ((lastCollideChecks_ & (1 shl opposite)) = 0
-                          or level -> getEdges (atTX + oppOffX, atTY + oppOffY) = -1) then
+                    %if  ((lastCollideChecks_ & (1 shl edge)) = 0
+                    %      or level -> getEdges (atTX + edgOffX, atTY + edgOffY) = -1)
+                    %    and
+                    %      ((lastCollideChecks_ & (1 shl opposite)) = 0
+                    %      or level -> getEdges (atTX + oppOffX, atTY + oppOffY) = -1)
+                    %    then
                         
-                        locate (7, 10)
-                        put "r"..
+                        %locate (7, 10)
+                        %put "r"..
+                        
+                        % git out
+                        posX -= + speed * cosd (angle)
+                        posY -= + speed * sind (angle)
                         
                         % We haven't collided with this edge or the opposite
                         % edge yet, do the response
-                        %realEdge := opposite
                     
                         % Collision detected, reflect the angle
                         
@@ -157,9 +164,14 @@ class BulletObject
                         angle := atan2d (amtY, amtX)
                         
                         % Displace self out of wall
-                        posX += /*displaceX * 0.1*/ + speed * cosd (angle) * 0.9
-                        posY += /*displaceY * 0.1*/ + speed * sind (angle) * 0.9
-                    end if
+                        posX += speed * cosd (angle) * 2
+                        posY += speed * sind (angle) * 2
+                        
+                        if collisionCount > 1 then
+                            posX += speed * cosd (angle + 90) * 4
+                            posY += speed * sind (angle + 90) * 4
+                        end if
+                    %end if
                     
                     % Either collided or technically collided
                     hasCollided |= true
@@ -172,18 +184,22 @@ class BulletObject
             % Update last collision checks
             % If we have just collided, the current tiles edges are out last checks
             % Otherwise, it is 0
-            locate (8, 1)
-            put lastCollideChecks_, " "..
+            %locate (8, 1)
+            %put lastCollideChecks_, " "..
             
+            locate (10, 1)
             if hasCollided then
+                collisionCount += 1
                 lastCollideChecks_ := newLastCollided
-                put "boop "..
+                put "a "..
             else
+                collisionCount := 0
                 lastCollideChecks_ := 0
-                put " not "..
+                put "r "..
             end if
+            put collisionCount ..
             
-            put intstr (lastCollideChecks_, 4, 2)..
+            %put intstr (lastCollideChecks_, 4, 2)..
         end if
         
         % Reduce the lifespan

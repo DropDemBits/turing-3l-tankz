@@ -158,7 +158,7 @@ proc run ()
         lastTime := now
         catchup += elapsed
         
-        colourback (30)
+        colourback (28)
         colour (black)
         cls
         
@@ -166,9 +166,9 @@ proc run ()
         processInput ()
         
         % Update at a fixed rate
-        loop
+        %loop
             % Stop once we've caught up with the lag
-            exit when catchup < UPDATE_QUANTUM
+        %    exit when catchup < UPDATE_QUANTUM
             
             update (UPDATE_QUANTUM)
             
@@ -176,14 +176,14 @@ proc run ()
             catchup -= UPDATE_QUANTUM
             
             ups += 1
-        end loop
+        %end loop
         
         % Draw everything (calculate update interpolation also)
         render (catchup / (UPDATE_QUANTUM * 1000))
         fps += 1
         
-        %loop exit when hasch end loop
-        %Input.Flush ()
+        loop exit when hasch end loop
+        Input.Flush ()
         
         % Handle graceful exit
         exit when not isRunning
