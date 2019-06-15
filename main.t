@@ -17,7 +17,8 @@ import UI in "lib/ui_util.tu",
 % Main classes
 Match in "classes/match.t",
 PersistentData in "classes/persistent.t",
-InputControllers in "classes/input.t"
+InputControllers in "classes/input.t",
+GameStates in "classes/state.t"
 
 
 put "3L Tankz: Work in Progress"
@@ -45,8 +46,8 @@ var playerWins : array 0 .. 63 of int
 proc beginMatch ()
     var width, height : int
     
-    width := Rand.Int (3, 15)
-    height := Rand.Int (5, 9)
+    width := 14%Rand.Int (3, 13)
+    height := 6%Rand.Int (5, 9)
     
     % Initialize the match
     new Match, match
@@ -56,7 +57,7 @@ proc beginMatch ()
     match -> addPlayer (0, 40,         0, 0,          inputs (0))
     match -> addPlayer (1, 54, width - 1, 0,          inputs (1))
     match -> addPlayer (2, 48, width - 1, height - 1, inputs (2))
-    match -> addPlayer (3, 44,         0, height - 1, inputs (3))
+    match -> addPlayer (3, 43,         0, height - 1, inputs (3))
 end beginMatch
 
 proc processInput ()
@@ -159,16 +160,16 @@ proc run ()
         catchup += elapsed
         
         colourback (28)
-        colour (black)
+        colour (white)
         cls
         
         % Handle input events
         processInput ()
         
         % Update at a fixed rate
-        %loop
+        loop
             % Stop once we've caught up with the lag
-        %    exit when catchup < UPDATE_QUANTUM
+            exit when catchup < UPDATE_QUANTUM
             
             update (UPDATE_QUANTUM)
             
@@ -176,14 +177,14 @@ proc run ()
             catchup -= UPDATE_QUANTUM
             
             ups += 1
-        %end loop
+        end loop
         
         % Draw everything (calculate update interpolation also)
         render (catchup / (UPDATE_QUANTUM * 1000))
         fps += 1
         
-        loop exit when hasch end loop
-        Input.Flush ()
+        %loop exit when hasch end loop
+        %Input.Flush ()
         
         % Handle graceful exit
         exit when not isRunning

@@ -228,96 +228,10 @@ class Object
     * - Two of the 4 axis are parallel to the respective world axis
     * - The parallel axis will always be in the same direction
     *
-    * Returns if the object is colliding with the wall, and the static
-    * displacement to resolve the collision
+    * Returns if the object is colliding with the wall
     */
-    fcn isColliding (tileX, tileY, direction : int, box_points : array 1 .. 4, 1 .. 2 of real, var displaceX, displaceY : real) : boolean
-        % Translate the current object's box into world space
-        var objBox : array 1 .. 4, 1 .. 2 of real
-        
-        for i : 1 .. 4
-            objBox (i, 1) := posX + objectBox (i, 1) / Level.TILE_SIZE
-            objBox (i, 2) := posY + objectBox (i, 2) / Level.TILE_SIZE
-        end for
-    
-        % Calculate the bounds of the wall box
-        var wallBox : array 1 .. 4, 1 .. 2 of real
-        
-        case direction of
-            label Level.DIR_UP:
-                % 0,1 -> 1,1
-                
-                % 0, 0
-                wallBox(1, 1) := tileX + 0
-                wallBox(1, 2) := tileY + 1 - Level.LINE_RADIUS / Level.TILE_SIZE
-                
-                % 0, 1
-                wallBox(2, 1) := tileX + 1
-                wallBox(2, 2) := tileY + 1 - Level.LINE_RADIUS / Level.TILE_SIZE
-                
-                % 1, 1
-                wallBox(3, 1) := tileX + 1
-                wallBox(3, 2) := tileY + 1 + Level.LINE_RADIUS / Level.TILE_SIZE
-                
-                % 1, 0
-                wallBox(4, 1) := tileX + 0
-                wallBox(4, 2) := tileY + 1 + Level.LINE_RADIUS / Level.TILE_SIZE
-            label Level.DIR_DOWN:
-                % 0, 0
-                wallBox(1, 1) := tileX + 0
-                wallBox(1, 2) := tileY + 0 - Level.LINE_RADIUS / Level.TILE_SIZE
-                
-                % 0, 1
-                wallBox(2, 1) := tileX + 1
-                wallBox(2, 2) := tileY + 0 - Level.LINE_RADIUS / Level.TILE_SIZE
-                
-                % 1, 1
-                wallBox(3, 1) := tileX + 1
-                wallBox(3, 2) := tileY + 0 + Level.LINE_RADIUS / Level.TILE_SIZE
-                
-                % 1, 0
-                wallBox(4, 1) := tileX + 0
-                wallBox(4, 2) := tileY + 0 + Level.LINE_RADIUS / Level.TILE_SIZE
-            label Level.DIR_LEFT:
-                % 0, 0
-                wallBox(1, 1) := tileX + 0 - Level.LINE_RADIUS / Level.TILE_SIZE
-                wallBox(1, 2) := tileY + 0
-                
-                % 0, 1
-                wallBox(2, 1) := tileX + 0 - Level.LINE_RADIUS / Level.TILE_SIZE
-                wallBox(2, 2) := tileY + 1
-                
-                % 1, 1
-                wallBox(3, 1) := tileX + 0 + Level.LINE_RADIUS / Level.TILE_SIZE
-                wallBox(3, 2) := tileY + 1
-                
-                % 1, 0
-                wallBox(4, 1) := tileX + 0 + Level.LINE_RADIUS / Level.TILE_SIZE
-                wallBox(4, 2) := tileY + 0
-            label Level.DIR_RIGHT:
-                % 0, 0
-                wallBox(1, 1) := tileX + 1 - Level.LINE_RADIUS / Level.TILE_SIZE
-                wallBox(1, 2) := tileY + 0
-                
-                % 0, 1
-                wallBox(2, 1) := tileX + 1 - Level.LINE_RADIUS / Level.TILE_SIZE
-                wallBox(2, 2) := tileY + 1
-                
-                % 1, 1
-                wallBox(3, 1) := tileX + 1 + Level.LINE_RADIUS / Level.TILE_SIZE
-                wallBox(3, 2) := tileY + 1
-                
-                % 1, 0
-                wallBox(4, 1) := tileX + 1 + Level.LINE_RADIUS / Level.TILE_SIZE
-                wallBox(4, 2) := tileY + 0
-        end case
-        
-        % Test using isOverlapping
-        %var displacement : real := 0
-        %var isColliding := isOverlapping (wallBox, objBox, displacement)
-        
+    fcn isColliding (tileX, tileY, direction : int, box_points : array 1 .. 4, 1 .. 2 of real) : boolean
         var isColliding : boolean := false
-        var displaceAmount : real := 0
     
         % Get edge endpoints
         var edgeX0, edgeY0, edgeX1, edgeY1 : real
@@ -373,21 +287,12 @@ class Object
                 u_a := u_a0 / u_ab
                 u_b := u_b0 / u_ab
                 isColliding := (u_a >= 0 and u_a <= 1) and (u_b >= 0 and u_b <= 1)
-                
-                
-                dx := (sideX0 + u_a * (sideX1 - sideX0)) - posX
-                dy := (sideY0 + u_a * (sideY1 - sideY0)) - posY
-                
-                displaceAmount := sqrt (dx ** 2 + dy ** 2)
             else
                 % Lines are parallel, will never collide
                 isColliding := false
             end if
             
-            if isColliding then
-                locate (12, 1)
-                put dx, ", ", dy
-            
+            if isColliding then            
                 % Collision has been detected with this tank side
                 % No other edges to check
                 exit
@@ -395,44 +300,11 @@ class Object
             % Tank side not colliding
         end for
         
-        /*if displaceX not= 0 then
-            drawfillbox
-                   (round (wallBox (1, 1) * Level.TILE_SIZE + level -> cameraX),
-                    round (wallBox (1, 2) * Level.TILE_SIZE + level -> cameraY),
-                    round (wallBox (3, 1) * Level.TILE_SIZE + level -> cameraX),
-                    round (wallBox (3, 2) * Level.TILE_SIZE + level -> cameraY),
-                    40 + direction * 2)
-        end if*/
-        
         % All sides tested
         if not isColliding then
             % No collision detected, don't do anything
-            %displaceX := 0
-            %displaceY := 0
             result false
         end if
-        
-        % Calculate the displacement in the x and y directions
-        % Displacement is applied in the direction of both object centres
-        
-        % Find the centres of the walls
-        var wallCentreX : real := (wallBox(3, 1) + wallBox(1, 1)) / 2
-        var wallCentreY : real := (wallBox(3, 2) + wallBox(1, 2)) / 2
-        
-        % Find the centre of this object
-        var objCentreX : real := (objBox(3, 1) + objBox(1, 1)) / 2
-        var objCentreY : real := (objBox(3, 2) + objBox(1, 2)) / 2
-        
-        % Calculate the displacement vector
-        displaceX := (wallCentreX - objCentreX)
-        displaceY := (wallCentreY - objCentreY)
-        
-        % Find the magnitude of the displacement vector for normalization
-        var mag : real := sqrt (displaceX ** 2 + displaceY ** 2)
-        
-        % Calculate the real displacement values
-        displaceX := -(displaceAmount * displaceX) / mag
-        displaceY := -(displaceAmount * displaceY) / mag
         
         % Collision has been detected
         result true      

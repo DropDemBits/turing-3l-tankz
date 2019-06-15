@@ -130,6 +130,11 @@ class Match
         offX := (cosd(owner -> angle) * (owner -> BARREL_LENGTH - 4)) / Level.TILE_SIZE
         offY := (sind(owner -> angle) * (owner -> BARREL_LENGTH - 4)) / Level.TILE_SIZE
         
+        % Add a random lateral offset
+        var randomLateral : real := Rand.Real () - 0.5
+        offX += (-sind (owner -> angle) * randomLateral * owner -> BARREL_RADIUS * 2) / Level.TILE_SIZE
+        offY += ( cosd (owner -> angle) * randomLateral * owner -> BARREL_RADIUS * 2) / Level.TILE_SIZE
+        
         % Initialize the bullet
         bullet -> initObj (offX + owner -> posX, offY + owner -> posY, owner -> angle)
         bullet -> setLevel (level)
@@ -229,7 +234,7 @@ class Match
                         exit when players (ply) = nil
                         
                         if  not players (ply) -> isDead ()
-                            and (players (ply) not= activeBullets (i) -> getOwner () or activeBullets (i) -> canKillOwner ())
+                            and(players (ply) not= activeBullets (i) -> getOwner () or activeBullets (i) -> canKillOwner ())
                             and players (ply) -> overlaps (activeBullets (i)) then
                             % Bullet collided with player, kill them and the
                             % bullet

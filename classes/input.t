@@ -206,7 +206,7 @@ module InputControllers
             end if
             
             % Stop rotating once we're within a certain distance of the goal
-            if abs (deltaAngle) < 8 then
+            if abs (deltaAngle) < 4 then
                 deltaAngle := 0
             end if
             

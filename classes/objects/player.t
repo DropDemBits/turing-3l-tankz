@@ -3,7 +3,7 @@ class PlayerObject
     inherit Object in "object.t"
     export
         % Constants %
-        BARREL_OFFSET, BARREL_LENGTH, MOVEMENT_SPEED, ROTATE_SPEED, REVERSE_SPEED,
+        BARREL_OFFSET, BARREL_LENGTH, BARREL_RADIUS, MOVEMENT_SPEED, ROTATE_SPEED, REVERSE_SPEED,
         % Exported variables %
         var playerID,
         % Setters %
@@ -18,6 +18,9 @@ class PlayerObject
     const ROTATE_SPEED : real := 2
     const MOVEMENT_DECAY : real := 0.9
     const ROTATE_DECAY : real := 0.7
+    
+    % Player shooting cooldown (2 seconds)
+    const SHOOTING_COOLDOWN : real := 20%00
     
     % Constants for the base
     const BASE_WIDTH := 25 / 2
@@ -38,9 +41,12 @@ class PlayerObject
     % Set if the player has requested to fire a shot
     var shootingRequested : boolean := false
     % Set while the shot state is in the shooting state
-    var isShootActive : boolean
+    var isShootActive : boolean := false
     % The ID of the bullet to shoot
     var bulletID : int := 0
+    % Cooldown shooting bullets (Set initially to prevent shooting at the start
+    % of the match)
+    var shootCooldown_ : real := SHOOTING_COOLDOWN
     
     % Movement controls
     var key_forward     : char := 'i'
@@ -96,7 +102,7 @@ class PlayerObject
     * Checks if the current player is requesting to shoot something
     */
     fcn isShotPending () : boolean
-        result shootingRequested
+        result true%shootingRequested
     end isShotPending
     
     /**
@@ -117,7 +123,7 @@ class PlayerObject
         effX := offX + (posX + speed * cosd (effAngle) * partialTicks) * Level.TILE_SIZE
         effY := offY + (posY + speed * sind (effAngle) * partialTicks) * Level.TILE_SIZE
     
-        % Base
+        %% Base %%
         polyX (1) := round (effX + objectBox (1, 1))
         polyX (2) := round (effX + objectBox (2, 1))
         polyX (3) := round (effX + objectBox (3, 1))
@@ -130,24 +136,36 @@ class PlayerObject
         drawfillpolygon(polyX, polyY, 4, base_colour + 24 * 3)
         
         
-        % Barrel
+        %% Barrel %%
+        % Calculate the real barrel length, with shooting cooldown as the
+        % percentage
+        var progress : real := (shootCooldown_ / SHOOTING_COOLDOWN) ** 3
+        var barrelLength : real := BARREL_LENGTH
+        var barrelColour : int := 20
+        barrelLength := BARREL_LENGTH - (BARREL_LENGTH - BASE_LENGTH) * progress
+        
+        % Set the colour to a lighter one if the cooldown is over
+        if shootCooldown_ <= 0 then
+            barrelColour += 4
+        end if
+        
         var barrelOffX, barrelOffY : real := 0
         barrelOffX := BARREL_RADIUS * -sind (angle)
         barrelOffY := BARREL_RADIUS * +cosd (angle)
         
         polyX (1) := round (effX + cosd (effAngle) * BARREL_OFFSET - barrelOffX)
         polyX (2) := round (effX + cosd (effAngle) * BARREL_OFFSET + barrelOffX)
-        polyX (3) := round (effX + cosd (effAngle) * BARREL_LENGTH + barrelOffX)
-        polyX (4) := round (effX + cosd (effAngle) * BARREL_LENGTH - barrelOffX)
+        polyX (3) := round (effX + cosd (effAngle) * barrelLength  + barrelOffX)
+        polyX (4) := round (effX + cosd (effAngle) * barrelLength  - barrelOffX)
         polyY (1) := round (effY + sind (effAngle) * BARREL_OFFSET - barrelOffY)
         polyY (2) := round (effY + sind (effAngle) * BARREL_OFFSET + barrelOffY)
-        polyY (3) := round (effY + sind (effAngle) * BARREL_LENGTH + barrelOffY)
-        polyY (4) := round (effY + sind (effAngle) * BARREL_LENGTH - barrelOffY)
+        polyY (3) := round (effY + sind (effAngle) * barrelLength  + barrelOffY)
+        polyY (4) := round (effY + sind (effAngle) * barrelLength  - barrelOffY)
         
-        drawfillpolygon(polyX, polyY, 4, 24)
+        drawfillpolygon(polyX, polyY, 4, barrelColour)
         
         
-        % Head
+        %% Head %%
         drawfilloval (round(effX), round(effY), HEAD_RADIUS, HEAD_RADIUS, base_colour)
         
         var lookingX, lookingY : real
@@ -162,14 +180,25 @@ class PlayerObject
     end render
 
     body proc update        
+        % Update the cooldown
+        if shootCooldown_ > 0 then
+            shootCooldown_ -= elapsed
+        else
+            shootCooldown_ := 0
+        end if
+    
         % Get shooting status        
         if isShooting and not isShootActive then
             % A shot is requested
             shootingRequested := true
             isShootActive := true
-        elsif not isShooting then
-            % Reset shoot status
+            
+            % Reset cooldown
+            shootCooldown_ := SHOOTING_COOLDOWN
+        elsif not isShooting and shootCooldown_ <= 0 then
+            % Reset shoot status once the cooldown is over
             isShootActive := false
+            shootCooldown_ := 0
         end if
         
         % Apply acceleration
@@ -260,22 +289,15 @@ class PlayerObject
                 if tileEdges not= -1 then
                     % Test for collision against all edges
                     var collideEdges := 0
-                    var displaceX, displaceY : real := 0
             
                     % Test for collision against all edges
                     for edge : 0 .. 3
-                        var dx, dy : real := 0
-                        
                         % Test only if the edge exists
                         if (tileEdges & (1 shl edge)) not= 0 and
-                            isColliding (atTX + tileOffX, atTY + tileOffY, edge, objectBox, dx, dy) then
+                            isColliding (atTX + tileOffX, atTY + tileOffY, edge, objectBox) then
                             
                             % Collision detected
                             collideEdges |= (1 shl edge)
-                            
-                            % Add to the displacement
-                            displaceX += dx
-                            displaceY += dy
                         end if
                         
                         % Check done for this edge
@@ -289,10 +311,6 @@ class PlayerObject
                         % Reverse movements
                         posX -= (speed * cosd(angle)) * 1.5
                         posY -= (speed * sind(angle)) * 1.5
-                        
-                        % Apply displacement
-                        %posX += displaceX * 0.01
-                        %posY += displaceY * 0.01
                         speed := 0
                         
                         % Reverse rotation
