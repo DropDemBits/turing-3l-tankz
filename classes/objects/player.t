@@ -7,7 +7,7 @@ class PlayerObject
         % Exported variables %
         var playerID,
         % Setters %
-        setInputScheme, setColour, setShootingState, clearPendingShot,
+        setColour, setShootingState, clearPendingShot,
         % Getters %
         isShotPending, getBulletID
     
@@ -20,7 +20,7 @@ class PlayerObject
     const ROTATE_DECAY : real := 0.7
     
     % Player shooting cooldown (2 seconds)
-    const SHOOTING_COOLDOWN : real := 20%00
+    const SHOOTING_COOLDOWN : real := 2000
     
     % Constants for the base
     const BASE_WIDTH := 25 / 2
@@ -48,13 +48,6 @@ class PlayerObject
     % of the match)
     var shootCooldown_ : real := SHOOTING_COOLDOWN
     
-    % Movement controls
-    var key_forward     : char := 'i'
-    var key_left        : char := 'j'
-    var key_backward    : char := 'k'
-    var key_right       : char := 'l'
-    var key_shoot       : char := 'u'
-    
     % Base colour of the tank (red by default)
     var base_colour     : int := 40
     
@@ -71,18 +64,8 @@ class PlayerObject
     % Player id of this player
     var playerID : int := 0
     
-    var cooldown : real := 1000
-    
     
     %%% Public methods %%%
-    proc setInputScheme (f, l, b, r, s : char)
-        key_forward     := f
-        key_left        := l
-        key_backward    := b
-        key_right       := r
-        key_shoot       := s
-    end setInputScheme
-    
     proc setColour (clr : int)
         base_colour := clr
     end setColour
@@ -102,7 +85,7 @@ class PlayerObject
     * Checks if the current player is requesting to shoot something
     */
     fcn isShotPending () : boolean
-        result true%shootingRequested
+        result shootingRequested
     end isShotPending
     
     /**
@@ -150,8 +133,8 @@ class PlayerObject
         end if
         
         var barrelOffX, barrelOffY : real := 0
-        barrelOffX := BARREL_RADIUS * -sind (angle)
-        barrelOffY := BARREL_RADIUS * +cosd (angle)
+        barrelOffX := BARREL_RADIUS * -sind (effAngle)
+        barrelOffY := BARREL_RADIUS * +cosd (effAngle)
         
         polyX (1) := round (effX + cosd (effAngle) * BARREL_OFFSET - barrelOffX)
         polyX (2) := round (effX + cosd (effAngle) * BARREL_OFFSET + barrelOffX)
@@ -167,16 +150,6 @@ class PlayerObject
         
         %% Head %%
         drawfilloval (round(effX), round(effY), HEAD_RADIUS, HEAD_RADIUS, base_colour)
-        
-        var lookingX, lookingY : real
-        lookingX  := cosd (effAngle)
-        lookingY  := sind (effAngle)
-        
-        drawline (round (effX),
-                  round (effY),
-                  round (effX + lookingX * (12 + (speed * 8) ** 2 * sign(speed))),
-                  round (effY + lookingY * (12 + (speed * 8) ** 2 * sign(speed))),
-                  black)
     end render
 
     body proc update        
@@ -187,9 +160,9 @@ class PlayerObject
             shootCooldown_ := 0
         end if
     
-        % Get shooting status        
-        if isShooting and not isShootActive then
-            % A shot is requested
+        % Get shooting status
+        if isShooting and not isShootActive and shootCooldown_ <= 0 then
+            % A shot is requested, and the cooldown isn't active
             shootingRequested := true
             isShootActive := true
             
@@ -274,6 +247,7 @@ class PlayerObject
         
         % Check for any collisions
         if abs(speed) > 0 or abs (angularVel) > 0 then
+            var hasCollided : boolean := false
             var atTX, atTY : int
             atTX := round (posX - 0.5)
             atTY := round (posY - 0.5)
@@ -295,28 +269,49 @@ class PlayerObject
                         % Test only if the edge exists
                         if (tileEdges & (1 shl edge)) not= 0 and
                             isColliding (atTX + tileOffX, atTY + tileOffY, edge, objectBox) then
+                    
+                            % Collision detected, investigate further
+                            posX -= (speed * cosd(angle))
+                            posY -= (speed * sind(angle))
+                            angle -= angularVel
                             
-                            % Collision detected
-                            collideEdges |= (1 shl edge)
+                            var stepSpeed : real := speed / 10
+                            var stepAngVel : real := angularVel / 10
+                            
+                            for steps : 1 .. 10
+                                % Keep advancing the position until we hit the collision point
+                                exit when isColliding (atTX + tileOffX, atTY + tileOffY, edge, objectBox)
+                                
+                                posX  += stepSpeed * cosd (angle)
+                                posY  += stepSpeed * sind (angle)
+                                angle += stepAngVel
+                            end for
+                            
+                            % Response is multiplied by 1.5 to get the tank out of the
+                            % wall
+                            
+                            % Reverse movements & rotation
+                            posX -= (stepSpeed * cosd(angle))
+                            posY -= (stepSpeed * sind(angle))
+                            angle -= stepAngVel
+                            
+                            if isColliding (atTX + tileOffX, atTY + tileOffY, edge, objectBox) then
+                                % Still colliding, double reverse
+                                posX -= (speed * cosd(angle)) * 1.2
+                                posY -= (speed * sind(angle)) * 1.2
+                                angle -= angularVel * 1.2
+                            end if
+                            
+                            speed := 0
+                            angularVel := 0
+                            hasCollided := true
                         end if
                         
                         % Check done for this edge
                     end for
                     
-                    if collideEdges not= 0 then
-                        % Collision detected
-                        % Response is multiplied by 1.5 to get the tank out of the
-                        % wall
-                        
-                        % Reverse movements
-                        posX -= (speed * cosd(angle)) * 1.5
-                        posY -= (speed * sind(angle)) * 1.5
-                        speed := 0
-                        
-                        % Reverse rotation
-                        angle -= angularVel * 1.5
-                        angularVel := 0
-                    end if
+                    % Don't deal with other collision tiles
+                    exit when hasCollided
                 end if
             end for
         end if

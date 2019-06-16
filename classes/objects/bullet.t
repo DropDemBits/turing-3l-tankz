@@ -13,8 +13,8 @@ class BulletObject
         -RADIUS, +RADIUS,
         )
     
-    % Current lifespan of the bullet. Will live for 30 seconds
-    var lifespan : real := 30000
+    % Current lifespan of the bullet. Will live for 15 seconds
+    var lifespan : real := 15000
     
     % Last collision checkss done by this bullet
     var lastCollideChecks_ : int := 0
@@ -66,6 +66,9 @@ class BulletObject
     end onInitObj
     
     body proc update
+        % Reduce the lifespan
+        lifespan -= elapsed
+        
         if lifespan < 0 then
             setDead ()
             % Bullet is now dead, don't do anything
@@ -75,6 +78,12 @@ class BulletObject
         % Update position
         posX += speed * cosd (angle)
         posY += speed * sind (angle)
+        
+        % If we're performing the poof, don't do anything
+        if lifespan < 250 then
+            isDead_ := true
+            return
+        end if
         
         % Update owner kill status
         if sqrt ((posX - owner_ -> posX) ** 2 + (posY - owner_ -> posY) ** 2) > 1 then
@@ -87,7 +96,6 @@ class BulletObject
         atTX := round (posX - 0.5)
         atTY := round (posY - 0.5)
         
-        
         var tileEdges : int := 0
         var tileOffX : int := 0
         var tileOffY : int := 0
@@ -98,10 +106,6 @@ class BulletObject
         locate (1, 1)
         if tileEdges not= -1 then
             var hasCollided : boolean := false
-        
-            % Test for collision against all edges
-            var collideEdges := 0
-            var newLastCollided : int := 0
         
             % Test for collision against all edges
             for edge : 0 .. 3
@@ -143,53 +147,44 @@ class BulletObject
                     posX += speed * cosd (angle) * 0.5
                     posY += speed * sind (angle) * 0.5
                     
-                    if collisionCount > 1 then
+                    if collisionCount > 2 then
+                        % Force out the bullet in a perpendicular direction
                         posX += speed * cosd (angle + 90) * 2 * (collisionCount / 10)
                         posY += speed * sind (angle + 90) * 2 * (collisionCount / 10)
                     end if
                     
-                    % Either collided or technically collided
+                    % Definitely collided collided
                     hasCollided |= true
-                    newLastCollided |= 1 shl edge
                 end if
                 
                 % Check done for this edge
             end for
             
-            % Update last collision checks
-            % If we have just collided, the current tiles edges are out last checks
-            % Otherwise, it is 0
-            %locate (8, 1)
-            %put lastCollideChecks_, " "..
-            
-            locate (10, 1)
+            % Update continuous collison count
+            % If we have just collided, the collision coubter is incremented
+            % Otherwise, it is reset to 0
             if hasCollided then
                 collisionCount += 1
-                lastCollideChecks_ := newLastCollided
-                put "a "..
             else
                 collisionCount := 0
-                lastCollideChecks_ := 0
-                put "r "..
             end if
-            put collisionCount ..
-            
-            %put intstr (lastCollideChecks_, 4, 2)..
         end if
-        
-        % Reduce the lifespan
-        lifespan -= elapsed
     end update
     
-    body proc render
-        if isDead () then
-            return
-        end if
-        
+    body proc render        
         var effX, effY : real
         effX := offX + (posX + speed * cosd (angle) * partialTicks) * Level.TILE_SIZE
         effY := offY + (posY + speed * sind (angle) * partialTicks) * Level.TILE_SIZE
-        drawfilloval (round (effX), round (effY), 5, 5, black)
+        
+        if lifespan < 250 then
+            % Less than 0.25 seconds left, perform poof
+            var poofPercent : real := 1 - (0.75 - (lifespan / 250) ** 2)
+            var poofRad : int := round (5 * abs(poofPercent))
+            
+            drawfilloval (round (effX), round (effY), poofRad, poofRad, 24)
+        else
+            drawfilloval (round (effX), round (effY), 5, 5, black)
+        end if
         
         % Draw object bounding box (OBB)
         /*
