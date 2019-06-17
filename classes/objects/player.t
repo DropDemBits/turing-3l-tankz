@@ -13,14 +13,14 @@ class PlayerObject
     
     %%% Internal Constants %%%
     % Movement related
-    const MOVEMENT_SPEED : real := 1.25 / Level.TILE_SIZE
-    const REVERSE_SPEED : real := 0.75 / Level.TILE_SIZE
-    const ROTATE_SPEED : real := 2
-    const MOVEMENT_DECAY : real := 0.9
-    const ROTATE_DECAY : real := 0.7
+    const MOVEMENT_SPEED : real := 1.5 / Level.TILE_SIZE
+    const REVERSE_SPEED : real := 1.5 / Level.TILE_SIZE
+    const ROTATE_SPEED : real := 3.25
+    const MOVEMENT_DECAY : real := 0.4
+    const ROTATE_DECAY : real := 0.4
     
-    % Player shooting cooldown (2 seconds)
-    const SHOOTING_COOLDOWN : real := 2000
+    % Player shooting cooldown (5 seconds)
+    const SHOOTING_COOLDOWN : real := 5000
     
     % Constants for the base
     const BASE_WIDTH := 25 / 2
@@ -78,7 +78,7 @@ class PlayerObject
     * Clears the currently pending shot
     */
     proc clearPendingShot ()
-        shootingRequested := false
+        %shootingRequested := false
     end clearPendingShot
     
     /**
@@ -263,6 +263,8 @@ class PlayerObject
                 if tileEdges not= -1 then
                     % Test for collision against all edges
                     var collideEdges := 0
+                    % Build response vector
+                    var respX, respY : real := 0
             
                     % Test for collision against all edges
                     for edge : 0 .. 3
@@ -287,28 +289,40 @@ class PlayerObject
                                 angle += stepAngVel
                             end for
                             
-                            % Response is multiplied by 1.5 to get the tank out of the
-                            % wall
-                            
                             % Reverse movements & rotation
-                            posX -= (stepSpeed * cosd(angle))
-                            posY -= (stepSpeed * sind(angle))
-                            angle -= stepAngVel
+                            %posX -= (stepSpeed * cosd(angle))
+                            %posY -= (stepSpeed * sind(angle))
+                            %angle -= stepAngVel
                             
-                            if isColliding (atTX + tileOffX, atTY + tileOffY, edge, objectBox) then
-                                % Still colliding, double reverse
-                                posX -= (speed * cosd(angle)) * 1.2
-                                posY -= (speed * sind(angle)) * 1.2
-                                angle -= angularVel * 1.2
-                            end if
+                            % Add to collision response vector (opposite of wall)
+                            case edge of
+                                label Level.DIR_UP:       respY -= 1
+                                label Level.DIR_DOWN:     respY += 1
+                                label Level.DIR_RIGHT:    respX -= 1
+                                label Level.DIR_LEFT:     respX += 1
+                            end case
                             
-                            speed := 0
-                            angularVel := 0
                             hasCollided := true
                         end if
                         
                         % Check done for this edge
                     end for
+                    
+                    if hasCollided then
+                        % Do collision response
+                        % Normalize collision vector, shrink down to tile size
+                        var mag : real := sqrt (respX ** 2 + respY ** 2)
+                        respX /= mag
+                        respY /= mag
+                        
+                        % Apply collision response
+                        posX += respX * (0.5 / Level.TILE_SIZE)
+                        posY += respY * (0.5 / Level.TILE_SIZE)
+                        
+                        % Stop moving
+                        speed := 0
+                        angularVel := 0
+                    end if
                     
                     % Don't deal with other collision tiles
                     exit when hasCollided

@@ -8,10 +8,91 @@ module GameStates
             PersistentData in "persistent.t",
             Match in "match.t",
             InputControllers in "input.t"
-    export ~.* var all
+    export
+        ~.* var GameState,
+        ~.* var PlayState,
+        ~.* var MainMenuState,
+        requestState,
+        ~.* STATE_EXIT,
+        ~.* STATE_MAIN_MENU,
+        ~.* STATE_PLAY_PREP,
+        ~.* STATE_PLAY_GAME,
+        ~.* STATE_PLAY_FINI,
+        ~.* STATE_OPTIONS,
+        ~.* STATE_HELP
+
+    %%% State Identifiers %%%
+    % Valid states to be in
+    % Game exit state
+    const *STATE_EXIT      : int := -1
+    % Base main menu state
+    const *STATE_MAIN_MENU : int := 0
+    % Play state & related sub states
+    const *STATE_PLAY_PREP : int := 1
+    const *STATE_PLAY_GAME : int := 2
+    const *STATE_PLAY_FINI : int := 3
+    % Options menu
+    const *STATE_OPTIONS   : int := 4
+    % Help menu (TODO)
+    const *STATE_HELP      : int := 5
+
+    % Indicates the requsted state that the game should switch to
+    % Declared up here as there is no forward declerations of anything that
+    % isn't a function or a procedure
+    var pervasive requestState : int := STATE_MAIN_MENU
+
+    %%% State Management Forward Decleration %%%
+    
+    
+    %%% Menu Callbacks %%%
+    fcn pervasive playCB (self_ :^ UIElement, evt : ^UIEvent) : int
+        if evt -> evtType not= EVT_MOUSE_BUTTON or evt -> evtData.bt_state not= MOUSE_CLICKED then
+            result EVENT_PROPAGATE
+        end if
+    
+        % Enter play prep state
+        requestState := STATE_PLAY_GAME
+    
+        result EVENT_CONSUME
+    end playCB
+    
+    fcn pervasive helpCB (self_ :^ UIElement, evt : ^UIEvent) : int
+        if evt -> evtType not= EVT_MOUSE_BUTTON or evt -> evtData.bt_state not= MOUSE_CLICKED then
+            result EVENT_PROPAGATE
+        end if
+    
+        % Enter help state
+        requestState := STATE_HELP
+    
+        result EVENT_CONSUME
+    end helpCB
+    
+    fcn pervasive optionsCB (self_ :^ UIElement, evt : ^UIEvent) : int
+        if evt -> evtType not= EVT_MOUSE_BUTTON or evt -> evtData.bt_state not= MOUSE_CLICKED then
+            result EVENT_PROPAGATE
+        end if
+    
+        % Enter options state
+        requestState := STATE_OPTIONS
+    
+        result EVENT_CONSUME
+    end optionsCB
+    
+    fcn pervasive exitCB (self_ :^ UIElement, evt : ^UIEvent) : int
+        if evt -> evtType not= EVT_MOUSE_BUTTON or evt -> evtData.bt_state not= MOUSE_CLICKED then
+            result EVENT_PROPAGATE
+        end if
+    
+        % Exit the game
+        requestState := STATE_EXIT
+    
+        result EVENT_CONSUME
+    end exitCB
+        
 
     % Base class for all game states
     class pervasive GameState
+        import UI
         export all
         
         % Initializes the GameState's components
@@ -22,10 +103,17 @@ module GameStates
         deferred proc update (elapsed : int)
         % Renders the necessary components
         deferred proc render (partialTicks : real)
+        % Called when the state is being switched to another one
+        deferred proc onStateSwitch (other : ^GameState)
         % Frees resources related to this GameState
         deferred proc freeState ()
-        % Whether the game should be exited or not
-        deferred fcn shouldExit () : boolean
+        % Gets the UI content root
+        deferred fcn getContentRoot () : ^UIElement
+        
+        %%% Default Implementations %%%
+        body fcn getContentRoot
+            result nil
+        end getContentRoot
     end GameState
     
     % Main menu state
@@ -33,30 +121,167 @@ module GameStates
         inherit GameState
         import UI
         
+        const TEXT_GAME_TITLE : string := "3L Tankz"
+        const TEXT_COPYRIGHT  : string := chr (16#A9) + " 2019 Third Lane Games"
+        const TEXT_PLAY       : string := "Play"
+        const TEXT_HELP       : string := "Help"
+        const TEXT_OPTIONS    : string := "Options"
+        const TEXT_EXIT       : string := "Exit"
+        
+        var contentRoot_ : ^UIElement := nil
+        var inputState_ : ^InputState := nil
+        
+        % Fonts
+        var fontTitle_ : int := 0
+        var fontSuperText_ : int := 0
+        var fontNormal_ : int := 0
+        
+        
+        %%% Method Implementations %%%
         body proc initState ()
+            % Setup the fonts
+            fontTitle_     := Font.New ("Niagara Engraved:64x32")
+            fontSuperText_ := Font.New ("Courier New:28x16")
+            fontNormal_    := Font.New ("Courier New:16x8")
+            
+            % Setup UI stuff
+            new inputState_
+            new UIEvent, inputState_ -> uiEvt
+            new UIElement, contentRoot_
+            contentRoot_ -> InitElement (0, 0, maxx, maxy)
+            
+            inputState_ -> wasPressed := false
+            inputState_ -> lastButtonTime := 0
+            inputState_ -> lastX := 0
+            inputState_ -> lastY := 0
+            inputState_ -> lastButtonState := 0
+            inputState_ -> mouseX := 0
+            inputState_ -> mouseY := 0
+            inputState_ -> mouseButtons := 0
+            inputState_ -> mouseState := MOUSE_RELEASED
+            
+            inputState_ -> uiEvt -> ChangeType (EVT_NONE)
+            
+            % Setup the four buttons (Play, Options, Help, Exit)
+            const BTTN_HEIGHT  : int := 60
+            const BTTN_WIDTH   : int := 200
+            const BTTN_SPACING : int := 10
+            
+            var button : ^UIButton := nil
+            
+            
+            % Play Button
+            new UIButton, button
+            button -> Init ((maxx - BTTN_WIDTH)  div 2,
+                            (maxy - BTTN_HEIGHT) div 2 + BTTN_HEIGHT + BTTN_SPACING,
+                            BTTN_WIDTH,
+                            BTTN_HEIGHT,
+                            TEXT_PLAY,
+                            fontSuperText_)
+            button -> SetBackgroundColours (26, 22, 24, 28)
+            button -> SetTextColour (18, 20)
+            button -> SetEventCallback (playCB)
+            contentRoot_ -> AddChild (button)
+            
+            
+            % Help Button
+            new UIButton, button
+            button -> Init ((maxx - BTTN_WIDTH)  div 2,
+                            (maxy - BTTN_HEIGHT) div 2,
+                            BTTN_WIDTH,
+                            BTTN_HEIGHT,
+                            TEXT_HELP,
+                            fontSuperText_)
+            button -> SetBackgroundColours (26, 22, 24, 28)
+            button -> SetTextColour (18, 20)
+            button -> SetEventCallback (helpCB)
+            contentRoot_ -> AddChild (button)
+            
+            
+            % Options Button
+            new UIButton, button
+            button -> Init ((maxx - BTTN_WIDTH)  div 2,
+                            (maxy - BTTN_HEIGHT) div 2 - (BTTN_HEIGHT + BTTN_SPACING),
+                            BTTN_WIDTH,
+                            BTTN_HEIGHT,
+                            TEXT_OPTIONS,
+                            fontSuperText_)
+            button -> SetBackgroundColours (26, 22, 24, 28)
+            button -> SetTextColour (18, 20)
+            button -> SetEventCallback (optionsCB)
+            contentRoot_ -> AddChild (button)
+            
+            
+            % Exit Button
+            new UIButton, button
+            button -> Init ((maxx - BTTN_WIDTH)  div 2,
+                            (maxy - BTTN_HEIGHT) div 2 - (BTTN_HEIGHT + BTTN_SPACING) * 2,
+                            BTTN_WIDTH,
+                            BTTN_HEIGHT,
+                            TEXT_EXIT,
+                            fontSuperText_)
+            button -> SetBackgroundColours (26, 22, 24, 28)
+            button -> SetTextColour (18, 20)
+            button -> SetEventCallback (exitCB)
+            contentRoot_ -> AddChild (button)
         end initState
         
         % Processes user input
         body proc processInput ()
+            UI.ProcessEvents (contentRoot_, inputState_)
         end processInput
         
         % Updates the necessary components
         body proc update (elapsed : int)
+            % Update the UI elements
+            contentRoot_ -> Update ()
         end update
         
         % Renders the necessary components
         body proc render (partialTicks : real)
+            % Draw game title
+            Font.Draw (TEXT_GAME_TITLE, (maxx - Font.Width (TEXT_GAME_TITLE, fontTitle_)) div 2, (maxy * 3) div 4, fontTitle_, white)
+            
+            % Draw copyright
+            Font.Draw (TEXT_COPYRIGHT, (maxx - Font.Width (TEXT_COPYRIGHT, fontNormal_)) div 2, 10, fontNormal_, white)
+            
+            % Draw the UI elements
+            contentRoot_ -> Render (0, 0)
         end render
         
         % Frees resources related to this GameState
         body proc freeState ()
+        
+            % Fonts
+            Font.Free (fontNormal_)
+            Font.Free (fontSuperText_)
+            Font.Free (fontTitle_)
+        
+            % The rest
+            free contentRoot_
+            free inputState_
         end freeState
+        
+        % UI Content root
+        body fcn getContentRoot
+            result contentRoot_
+        end getContentRoot
+        
+        % State switch alert
+        body proc onStateSwitch
+            if other = nil then
+                % Nothing to do
+                return
+            end if
+        
+            UI.OnContentRootChange (getContentRoot(), other -> getContentRoot (), inputState_)
+        end onStateSwitch
     end MainMenuState
     
     % Play State
     class PlayState
         inherit GameState
-        import MatchData, Match, InputControllers
+        import MatchData, Match, InputControllers, Mouse
         
         % The current game match
         var match : ^Match
@@ -70,6 +295,10 @@ module GameStates
         
         % Camera for drawing the entire match
         var cameraX, cameraY : real := 0
+        
+        % Current round & total rounds to play
+        var currentRound : int := 1
+        var totalRounds : int := 2
         
         %% Fonts IDs %%
         % Fonts for player info
@@ -147,8 +376,8 @@ module GameStates
             
             % Add the players
             match -> addPlayer (0, PLAYER_CLR (0),         0, 0,          inputs (0))
-            match -> addPlayer (1, PLAYER_CLR (1), width - 1, 0,          inputs (1))
-            match -> addPlayer (2, PLAYER_CLR (2), width - 1, height - 1, inputs (2))
+            %match -> addPlayer (1, PLAYER_CLR (1), width - 1, 0,          inputs (1))
+            %match -> addPlayer (2, PLAYER_CLR (2), width - 1, height - 1, inputs (2))
             match -> addPlayer (3, PLAYER_CLR (3),         0, height - 1, inputs (3))
         end beginMatch
         
@@ -197,7 +426,13 @@ module GameStates
                 match -> freeMatch ()
                 free Match, match
                 
-                beginMatch ()
+                currentRound += 1
+                
+                if currentRound < totalRounds then
+                    beginMatch ()
+                else
+                    requestState := STATE_MAIN_MENU
+                end if
             end if
         end update
         
@@ -229,8 +464,46 @@ module GameStates
         end render
         
         body proc freeState ()
-            match -> freeMatch ()
-            free match
+            for i : 0 .. upper (inputs)
+                if inputs (i) not= nil then
+                    free inputs (i)
+                end if
+            end for
+        
+            if match not= nil then
+                match -> freeMatch ()
+                free match
+            end if
+            
+            if matchData_ not= nil then
+                free matchData_
+            end if
         end freeState
+        
+        % State switch alert
+        body proc onStateSwitch
+            var inputState : ^InputState := nil
+            new inputState
+            new inputState -> uiEvt
+            
+            inputState -> wasPressed := false
+            inputState -> lastButtonTime := 0
+            inputState -> lastX := 0
+            inputState -> lastY := 0
+            inputState -> lastButtonState := 0
+            inputState -> mouseX := 0
+            inputState -> mouseY := 0
+            inputState -> mouseButtons := 0
+            inputState -> mouseState := MOUSE_RELEASED
+            inputState -> uiEvt -> ChangeType (EVT_NONE)
+            
+            Mouse.Where (inputState -> mouseX, inputState -> mouseY, inputState -> mouseButtons)
+        
+            UI.OnContentRootChange (getContentRoot(), other -> getContentRoot (), inputState)
+        end onStateSwitch
     end PlayState
+    
+    
+    %%% State Containers %%%
+    %%% State Management %%%
 end GameStates

@@ -1,7 +1,12 @@
 % [ REDACTED ] - UI Utilities
 % 2019-06-17
-% Version 1.1
 % Basic framework for UI elements
+
+% Version 1.1
+% - Added isVisible and setVisible
+% - Merge all event handling
+% Version 1.0
+% - Initial Version
 
 unit
 
@@ -11,7 +16,9 @@ module UI
         ~. EVENT_PROPAGATE, ~. EVENT_CONSUME,
         ~. EVT_NONE, ~. EVT_MOUSE_BUTTON, ~. EVT_MOUSE_MOVE,
         ~. var UIEvent, ~. var UIElement,
-        ~. var UIButton
+        ~. var UIButton,
+        % Utilities
+        ~. InputState, ProcessEvents, OnContentRootChange
     
     %% Mouse button states %%
     const pervasive MOUSE_RELEASED : int := 0
@@ -76,7 +83,7 @@ module UI
             end union
         
         % Type of event this is
-        var evtType : int := -1
+        var evtType : int := EVT_NONE
         % Data for the current event
         var evtData : eventDatas
         
@@ -108,16 +115,14 @@ module UI
             % Functions
             ProcessElementInput, Render, Update, AddChild, InitElement,
             % Setters
-            SetRenderer, SetMouseButtonCallback,
+            SetRenderer, SetEventCallback, SetEnabled, SetVisible,
             % Variables
             posX, posY, width, height,
-            var parent, var children, var sibling
+            var parent, var children, var sibling,
+            isEnabled, isVisible
         
         %%% Type Declerations %%%
-        type onMouseButtonCallback : function mouseCallback (self_ : ^ UIElement, 
-                                                             x, y,
-                                                             button,
-                                                             state : int) : int
+        type onEventCallback : function eventCallback (self_ : ^ UIElement, event_ : ^UIEvent) : int
         type customRenderer : procedure customRender (self_ : ^ UIElement)
     
     
@@ -129,7 +134,7 @@ module UI
         
         %% Callbacks %%
         % Callback called when the button is pressed, released, or clicked by the mouse
-        var onMouseButton : onMouseButtonCallback
+        var onEvent : onEventCallback
         var hasCallback : boolean := false
         
         %% Customization %%
@@ -145,6 +150,20 @@ module UI
         % the last element in the list
         var sibling : ^ UIElement := nil
         
+        %% Element Visibility & Related %%
+        % Whether the element is able to recieve update events or not
+        % The element will still be rendered, however the update method will not
+        % be called, and it can't recieve input events
+        %
+        % Enabled by default
+        var isEnabled : boolean := true
+        % Whether the element will be rendered at all.
+        % The element will not be rendered, but it can still recieve input
+        % events
+        %
+        % Visible by default
+        var isVisible : boolean := true
+        
         %% Misc %%
         % Set to true if the mouse cursor is or was (respectively) inside of this
         % element. Used to change the mouse movement event state to as appropriate.
@@ -157,12 +176,17 @@ module UI
         
         % Default renderer of the UIElement
         deferred procedure DoRender (offX, offY : int)
-        
+        % Default update behaviour
         deferred procedure DoUpdate ()
+        
+        % Called when the element enabled state changes
+        deferred procedure EnabledChange (enabled : boolean)
+        % Called when the element visibility changes
+        deferred procedure VisibilityChange (visible : boolean)
         
         %%% Default element behaviour %%%
         body function ProcessInput
-            % Do nothing
+            % Propagate by default
             result EVENT_PROPAGATE
         end ProcessInput
         
@@ -173,6 +197,14 @@ module UI
         body procedure DoRender
             % Draw nothing
         end DoRender
+        
+        body procedure EnabledChange
+            % Do nothing
+        end EnabledChange
+        
+        body procedure VisibilityChange
+            % Do nothing
+        end VisibilityChange
         
         
         %%% Private Functions %%%
@@ -198,13 +230,28 @@ module UI
         end SetRenderer
         
         /**
-        * Sets the mouse button callback of the element
+        * Sets the event callback of the element
         */
-        procedure SetMouseButtonCallback (buttonCallback : onMouseButtonCallback)
-            onMouseButton := buttonCallback
+        procedure SetEventCallback (eventCB : onEventCallback)
+            onEvent := eventCB
             hasCallback := true
-        end SetMouseButtonCallback
+        end SetEventCallback
         
+        /**
+        * Changes the visibility state of the element
+        */
+        procedure SetVisible (visible : boolean)
+            isVisible := visible
+            VisibilityChange (visible)
+        end SetVisible
+        
+        /**
+        * Changes the enabled state of the element
+        */
+        procedure SetEnabled (enabled : boolean)
+            isEnabled := enabled
+            EnabledChange (enabled)
+        end SetEnabled
         
         %%% Main Public Functions %%%
         
@@ -237,7 +284,7 @@ module UI
             end if
             
             % Current position of the mouse
-            var x, y : int
+            var x, y : int := 0
             
             % Acquire the current position of the mouse pointer
             if evt -> evtType = EVT_MOUSE_BUTTON then
@@ -290,6 +337,11 @@ module UI
         * consumed
         */
         function ProcessElementInput (evt : ^ UIEvent) : int
+            % Don't process event input if the current element is disabled
+            if not isEnabled then
+                result EVENT_PROPAGATE
+            end if
+        
             var propagateEvent : int
             
             UpdateMouseEntryState (evt)
@@ -309,14 +361,9 @@ module UI
             
             
             % Propagate to handler
+            propagateEvent := EVENT_PROPAGATE
             if hasCallback then
-                if evt -> evtType = EVT_MOUSE_BUTTON then
-                    propagateEvent := onMouseButton (self,
-                                                evt -> evtData.bt_x,
-                                                evt -> evtData.bt_y,
-                                                evt -> evtData.bt_button,
-                                                evt -> evtData.bt_state)
-                end if
+                propagateEvent := onEvent (self, evt)
             
                 % Check if the event was consumed
                 if propagateEvent = EVENT_CONSUME then
@@ -328,14 +375,18 @@ module UI
             % Propagate events to children
             var child : ^ UIElement := children
             
+            propagateEvent := EVENT_PROPAGATE
             loop
                 exit when child = nil
                 
-                propagateEvent := child -> ProcessElementInput (evt)
-                
-                % Check if the event was consumed
-                if propagateEvent = EVENT_CONSUME then
-                    result EVENT_CONSUME
+                % Only pass on events if the child is enabled
+                if child -> isEnabled then
+                    propagateEvent := child -> ProcessElementInput (evt)
+                    
+                    % Check if the event was consumed
+                    if propagateEvent = EVENT_CONSUME then
+                        result EVENT_CONSUME
+                    end if
                 end if
                 
                 % Move to next child
@@ -365,7 +416,11 @@ module UI
             loop
                 exit when child = nil
                 
-                child -> Render (offX + posX, offY + posY)
+                % Don't draw the child if it's not visible
+                if child -> isVisible then
+                    child -> Render (offX + posX, offY + posY)
+                end if
+                
                 child := child -> sibling
             end loop
         end Render
@@ -383,7 +438,11 @@ module UI
             loop
                 exit when child = nil
                 
-                child -> Update ()
+                % Don't update the child if it's disabled
+                if child -> isEnabled then
+                    child -> Update ()
+                end if
+                
                 child := child -> sibling
             end loop
         end Update
@@ -394,7 +453,7 @@ module UI
     */
     class pervasive UIButton
         inherit UIElement
-        export Init, SetPressible, text
+        export Init, SetTextColour, SetBackgroundColours, text
         
         %%% Constant Declerations %%%
         const DEFAULT_TEXT : int := white
@@ -456,7 +515,9 @@ module UI
                     % was moved outside of the button
                     
                     % Button state should always be 0 on a release event
-                    var ignored : int := onMouseButton (self, evt -> evtData.mv_x, evt -> evtData.mv_y, 0, MOUSE_RELEASED)
+                    if hasCallback then
+                        var ignored : int := onEvent (self, evt)
+                    end if
                     
                     % Reset pressed % highlighted state
                     isPressed := false
@@ -512,7 +573,7 @@ module UI
             var backgroundColour : int := backgroundColour
             var foregroundColour : int := textColour
             
-            if not canPress then
+            if not isEnabled then
                 % Darken button to indicate that it can't be pressed
                 backgroundColour := disabledColour
                 foregroundColour := disabledTextColour
@@ -531,6 +592,18 @@ module UI
             Font.Draw (text, posX + textX, posY + textY, buttonFont, foregroundColour)
             
         end DoRender
+        
+        /**
+        * Listens for any enabled change times
+        */
+        body procedure EnabledChange (enabled : boolean)
+            if not enabled then
+                % Reset 'isPressed' and 'isHighlighted' if the button is going
+                % to be disabled
+                isPressed := false
+                isHighlighted := false
+            end if
+        end EnabledChange
         
         /**
         * Updates the button state.
@@ -559,7 +632,6 @@ module UI
         * width_, height_:            Indicates the dimensions of the button
         * txt:                        Specifies the text to draw onto the button
         * buttonFont_:                Specifies the text to draw onto the button
-        * clickCallback:              The function called when the button is clicked
         * 
         */
         procedure Init (x_, y_, width_, height_ : int,
@@ -584,23 +656,7 @@ module UI
         end Init
         
         
-        /**
-        * Sets if the button can be pressed
-        *
-        * If the button is going to be disabled, then the pressed state
-        * will be reset.
-        */
-        procedure SetPressible (canPress_ : boolean)
-            canPress := canPress_
-            
-            if not canPress_ then
-                % Reset 'isPressed' and 'isHighlighted' if the button is going
-                % to be disabled
-                isPressed := false
-                isHighlighted := false
-            end if
-            
-        end SetPressible
+        
         
         /**
         * Sets the text colours of the button
@@ -633,7 +689,7 @@ module UI
             if normal_ < 0 then
                 backgroundColour := DEFAULT_BACKGROUND
             else
-                textColour := normal_
+                backgroundColour := normal_
             end if
             
             if disabled_ < 0 then
@@ -658,4 +714,159 @@ module UI
         
     end UIButton
     
+    
+    
+    /**
+    * InputState: Container for stateful input
+    */
+    type pervasive InputState :
+        record
+            % UIEvent container
+            uiEvt : ^UIEvent
+            
+            %% Mouse state related %%
+            % Whether the button was just pressed (used for detecting state transitions)
+            wasPressed : boolean
+            
+            % Last state of the mouse button (is either 0 or not zero)
+            lastButtonState : int
+            lastX, lastY : int
+            
+            % Last time the button state was changed
+            lastButtonTime : int
+            
+            % Current snapshot of the pointer state
+            % Valid values are defined in the MOUSE_* constants
+            mouseState : int
+            mouseX, mouseY, mouseButtons : int
+        end record
+    
+    
+    %%% Stateless things %%%
+    procedure ProcessEvents (contentRoot : ^UIElement, inputState : ^InputState)
+        % Don't process input if we don't have focus
+        if Window.GetActive() = -5 then
+            return
+        end if
+    
+        % Get Mouse input
+        Mouse.Where (inputState -> mouseX, inputState -> mouseY, inputState -> mouseButtons)
+        
+        % Return value of 'ProcessElementInput' functions
+        var consumeInput : int := 0
+        
+        if inputState -> mouseButtons not= inputState -> lastButtonState then
+            % Only update state when the button state has changed
+            
+            % Since there is no way to tell if other buttons are being held down,
+            % just roll all the buttons into the same 'wasPressed' state
+            if inputState -> mouseButtons = 0 then
+                % All buttons were released
+                % By default, enter into released state
+                inputState -> mouseState := MOUSE_RELEASED
+                
+                if inputState -> wasPressed then
+                    % Mouse was just previously pressed, enter CLICKED state
+                    inputState -> mouseState := MOUSE_CLICKED
+                    
+                    % Reset 'wasPressed' state
+                    inputState -> wasPressed := false
+                end if
+            else
+                % At least one of the buttons were pressed
+                inputState -> wasPressed := true
+                
+                % Enter into the PRESSED state
+                inputState -> mouseState := MOUSE_PRESSED
+            end if
+            
+            % Update 'lastButton*' variables 
+            inputState -> lastButtonState := inputState -> mouseButtons
+            inputState -> lastButtonTime := Time.Elapsed
+            
+            % Construct event data
+            inputState -> uiEvt -> ChangeType (EVT_MOUSE_BUTTON)
+            inputState -> uiEvt -> evtData . bt_x      := inputState -> mouseX
+            inputState -> uiEvt -> evtData . bt_y      := inputState -> mouseY
+            inputState -> uiEvt -> evtData . bt_button := inputState -> mouseButtons
+            inputState -> uiEvt -> evtData . bt_state  := inputState -> mouseState
+            
+            % Broadcast event to all UIElements
+            if inputState -> mouseState = MOUSE_CLICKED then
+                % Also send released event for click states
+                inputState -> uiEvt -> evtData . bt_state  := MOUSE_RELEASED
+                consumeInput := contentRoot -> ProcessElementInput (inputState -> uiEvt)
+                
+                if consumeInput = EVENT_PROPAGATE then
+                    % Only send the click event if the target element didn't
+                    % consume the release event
+                    inputState -> uiEvt -> evtData . bt_state  := MOUSE_CLICKED
+                    consumeInput := contentRoot -> ProcessElementInput (inputState -> uiEvt)
+                end if
+                
+                % Reset to released state
+                inputState -> mouseState := MOUSE_RELEASED
+            else
+                % Pass on mouse event as normal
+                consumeInput := contentRoot -> ProcessElementInput (inputState -> uiEvt)
+            end if
+            
+        end if
+        
+        if inputState -> mouseX not= inputState -> lastX or inputState -> mouseY not= inputState -> lastY then
+            % Only update when the mouse has been moved
+            
+            % Construct event data
+            inputState -> uiEvt -> ChangeType (EVT_MOUSE_MOVE)
+            inputState -> uiEvt -> evtData . mv_x       := inputState -> mouseX
+            inputState -> uiEvt -> evtData . mv_y       := inputState -> mouseY
+            inputState -> uiEvt -> evtData . mv_dx      := inputState -> mouseX - inputState -> lastX
+            inputState -> uiEvt -> evtData . mv_dy      := inputState -> mouseY - inputState -> lastY
+            inputState -> uiEvt -> evtData . mv_dragged := inputState -> mouseButtons not= 0
+            
+            % Broadcast event
+            consumeInput := contentRoot -> ProcessElementInput (inputState -> uiEvt)
+            
+            % Update last positions
+            inputState -> lastX := inputState -> mouseX
+            inputState -> lastY := inputState -> mouseY
+        end if
+    end ProcessEvents
+    
+    procedure OnContentRootChange (activeContentRoot, previousContentRoot : ^UIElement, inputState : ^InputState)
+        % The current content root has changed, fire the mouse exited event for
+        % the last root, and a mouse entered event for the new one.
+        % This is done to allow elements which depend on the mouse entry and
+        % exit variables to enter into the visually proper state.
+        var consumeInput : int := 0
+        
+        if previousContentRoot not= nil then
+            % NB: A little hacky, but just ensure that there's no element at -1, -1
+            
+            % Construct event data for last state
+            inputState -> uiEvt -> ChangeType (EVT_MOUSE_MOVE)
+            inputState -> uiEvt -> evtData . mv_x       := -1
+            inputState -> uiEvt -> evtData . mv_y       := -1
+            inputState -> uiEvt -> evtData . mv_dx      := -inputState -> lastX
+            inputState -> uiEvt -> evtData . mv_dy      := -inputState -> lastY
+            inputState -> uiEvt -> evtData . mv_dragged :=  inputState -> mouseButtons not= 0
+            
+            % Broadcast event to last state
+            consumeInput := previousContentRoot -> ProcessElementInput (inputState -> uiEvt)
+        end if
+        
+        
+        if activeContentRoot not= nil then
+            % Construct event data for new state
+            inputState -> uiEvt -> ChangeType (EVT_MOUSE_MOVE)
+            inputState -> uiEvt -> evtData . mv_x       := inputState -> mouseX
+            inputState -> uiEvt -> evtData . mv_y       := inputState -> mouseY
+            inputState -> uiEvt -> evtData . mv_dx      := inputState -> mouseX - inputState -> lastX
+            inputState -> uiEvt -> evtData . mv_dy      := inputState -> mouseY - inputState -> lastY
+            inputState -> uiEvt -> evtData . mv_dragged := inputState -> mouseButtons not= 0
+            
+            % Broadcast event
+            consumeInput := activeContentRoot -> ProcessElementInput (inputState -> uiEvt)
+        end if
+    end OnContentRootChange
 end UI

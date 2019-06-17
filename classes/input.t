@@ -116,11 +116,20 @@ module InputControllers
                 lineAccel -= player_ -> MOVEMENT_SPEED / 20
             end if
             
-            if keys (key_left) then
-                angleAccel += player_ -> ROTATE_SPEED / 20
-            end if
-            if keys (key_right) then
-                angleAccel -= player_ -> ROTATE_SPEED / 20
+            if player_ -> speed = 0 then
+                if keys (key_left) then
+                    angleAccel += player_ -> ROTATE_SPEED / 20
+                end if
+                if keys (key_right) then
+                    angleAccel -= player_ -> ROTATE_SPEED / 20
+                end if
+            else
+                if keys (key_left) then
+                    angleAccel += player_ -> ROTATE_SPEED / 24
+                end if
+                if keys (key_right) then
+                    angleAccel -= player_ -> ROTATE_SPEED / 24
+                end if
             end if
             
             % Get new shooting status
@@ -174,7 +183,7 @@ module InputControllers
             var mX, mY, mouseButton : int
             Mouse.Where (mX, mY, mouseButton)
             
-            if mX < 0 or mX > maxx or mY < 0 or mY > maxy then
+            if (mX < 0 or mX > maxx or mY < 0 or mY > maxy) or Window.GetSelect () = -1 then
                 % Don't update if the mouse is outside of the screen
                 player_ -> setAccel (0, 0)
                 return

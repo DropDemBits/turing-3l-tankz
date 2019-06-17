@@ -86,7 +86,7 @@ class BulletObject
         end if
         
         % Update owner kill status
-        if sqrt ((posX - owner_ -> posX) ** 2 + (posY - owner_ -> posY) ** 2) > 1 then
+        if sqrt ((posX - owner_ -> posX) ** 2 + (posY - owner_ -> posY) ** 2) > 0.5 then
             % Allow the ability to kill the owner after going a tile away
             canKillOwner_ := true
         end if
@@ -183,24 +183,10 @@ class BulletObject
             
             drawfilloval (round (effX), round (effY), poofRad, poofRad, 24)
         else
+            % Draw normal bullet
+            drawfilloval (round (effX), round (effY), 6, 6, 18)
             drawfilloval (round (effX), round (effY), 5, 5, black)
         end if
-        
-        % Draw object bounding box (OBB)
-        /*
-        for i : 1 .. 4
-            var startP, endP : int
-            
-            startP := i
-            endP := (i mod upper (objectBox)) + 1
-            
-            drawline (round (effX + objectBox (startP, 1)),
-                      round (effY + objectBox (startP, 2)),
-                      round (effX + objectBox (endP, 1)),
-                      round (effY + objectBox (endP, 2)),
-                      yellow)
-        end for
-        */
         
         if offX + posX * Level.TILE_SIZE < 0 or offX + posX * Level.TILE_SIZE > maxx + RADIUS
            or offY + posY * Level.TILE_SIZE < 0 or offY + posY * Level.TILE_SIZE > maxy + RADIUS then

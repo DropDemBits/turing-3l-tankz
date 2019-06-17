@@ -134,6 +134,10 @@ class Match
     end addPlayer
     
     fcn spawnBullet (owner : ^PlayerObject, bulletID : int) : boolean
+        if Rand.Real < 0.05 then
+            result true
+        end if
+    
         var bullet : ^BulletObject
         new BulletObject, bullet
         
