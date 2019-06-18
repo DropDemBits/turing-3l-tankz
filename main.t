@@ -13,7 +13,8 @@ import
     UI in "lib/ui_util.tu",
     % Main classes
     PersistentData in "classes/persistent.t",
-    GameStates in "classes/state.t"
+    GameStates in "classes/state.t",
+    Options in "classes/options.t"
 
 
 var winID : int := Window.Open("graphics:1024;640;offscreenonly,title:3L Tankz,position:center;middle")
@@ -40,6 +41,8 @@ var avgUpdateTime : real
 var currentState : int := STATE_MAIN_MENU
 % State container
 var stateContainer : ^GameState := nil
+% Current game options
+var gameOptions : ^Options := nil
 
 %%% Main Methods %%%
 % Processes user input
@@ -193,7 +196,6 @@ proc run ()
         View.Update ()
         
         %loop exit when hasch end loop
-        %Input.Flush ()
         
         % Handle graceful exit
         exit when not isRunning

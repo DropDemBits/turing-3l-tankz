@@ -5,7 +5,7 @@ class PlayerObject
         % Constants %
         BARREL_OFFSET, BARREL_LENGTH, BARREL_RADIUS, MOVEMENT_SPEED, ROTATE_SPEED, REVERSE_SPEED,
         % Exported variables %
-        var playerID,
+        var playerID, base_colour,
         % Setters %
         setColour, setShootingState, clearPendingShot,
         % Getters %
@@ -78,7 +78,7 @@ class PlayerObject
     * Clears the currently pending shot
     */
     proc clearPendingShot ()
-        %shootingRequested := false
+        shootingRequested := false
     end clearPendingShot
     
     /**

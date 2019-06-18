@@ -52,6 +52,9 @@ class Match
     % Intensity of the shake
     var shakeIntensity_ : real := 0
     
+    % Font to use when showing the match ending timer
+    var fontTimer : int := 0
+    
     % Data persistent between matches
     var matchData_ : ^MatchData := nil
     
@@ -73,6 +76,9 @@ class Match
         for i : 0 .. upper (activeBullets)
             activeBullets (i) := nil
         end for
+        
+        % Setup the font
+        fontTimer := Font.New ("Courier New:128x64")
     end initMatch
     
     proc freeMatch ()
@@ -94,6 +100,9 @@ class Match
         
         % Free the level
         free Level, level
+        
+        % Free the font
+        Font.Free (fontTimer)
     end freeMatch
     
     % Sets the pointer to the persistent data
@@ -134,7 +143,8 @@ class Match
     end addPlayer
     
     fcn spawnBullet (owner : ^PlayerObject, bulletID : int) : boolean
-        if Rand.Real < 0.05 then
+        % 1% chance of a bullet misfiring
+        if Rand.Real < 0.01 then
             result true
         end if
     
@@ -196,7 +206,8 @@ class Match
             % Start counting down
             endTimer -= elapsed
             
-            if endTimer < 0 then
+            % End the match, with 1 second to show everything
+            if endTimer < -1000 then
                 % Match has ended
                 matchEnded := true
                 
@@ -216,6 +227,11 @@ class Match
                     matchData_ -> playerWins (winningPlayer) += 1
                 end if
                 
+                return
+            end if
+            
+            % Don't update if the real countdown has ended
+            if endTimer < 0 then
                 return
             end if
         end if
@@ -340,11 +356,8 @@ class Match
         
         % Draw the match end countdown
         if livingPlayers <= 1 then
-            colourback (black)
-            colour (white)
-            
-            locate (1, 1)
-            put (endTimer / 1000) ..
+            var countdownText : string := frealstr (max(endTimer / 1000, 0), 0, 2)
+            Font.Draw (countdownText, (maxx - Font.Width (countdownText, fontTimer)) div 2, maxy div 2, fontTimer, red)
         end if
     end render
 end Match

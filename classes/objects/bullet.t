@@ -86,8 +86,10 @@ class BulletObject
         end if
         
         % Update owner kill status
-        if sqrt ((posX - owner_ -> posX) ** 2 + (posY - owner_ -> posY) ** 2) > 0.5 then
-            % Allow the ability to kill the owner after going a tile away
+        if sqrt ((posX - owner_ -> posX) ** 2 + (posY - owner_ -> posY) ** 2) > 0.5
+           or lifespan < lifespan - 5000 then
+            % Allow the ability to kill the owner after going a tile away, or for
+            % existing after 5 seconds
             canKillOwner_ := true
         end if
         
@@ -184,7 +186,7 @@ class BulletObject
             drawfilloval (round (effX), round (effY), poofRad, poofRad, 24)
         else
             % Draw normal bullet
-            drawfilloval (round (effX), round (effY), 6, 6, 18)
+            drawfilloval (round (effX), round (effY), 6, 6, owner_ -> base_colour)
             drawfilloval (round (effX), round (effY), 5, 5, black)
         end if
         

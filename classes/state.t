@@ -44,6 +44,8 @@ module GameStates
     %%% State Management Forward Decleration %%%
     
     
+    %%% These are here since Turing doesn't allow for these methods to be used
+    %%% as method variables
     %%% Menu Callbacks %%%
     fcn pervasive playCB (self_ :^ UIElement, evt : ^UIEvent) : int
         if evt -> evtType not= EVT_MOUSE_BUTTON or evt -> evtData.bt_state not= MOUSE_CLICKED then
@@ -298,7 +300,7 @@ module GameStates
         
         % Current round & total rounds to play
         var currentRound : int := 1
-        var totalRounds : int := 2
+        var totalRounds : int := 5
         
         %% Fonts IDs %%
         % Fonts for player info
@@ -376,8 +378,8 @@ module GameStates
             
             % Add the players
             match -> addPlayer (0, PLAYER_CLR (0),         0, 0,          inputs (0))
-            %match -> addPlayer (1, PLAYER_CLR (1), width - 1, 0,          inputs (1))
-            %match -> addPlayer (2, PLAYER_CLR (2), width - 1, height - 1, inputs (2))
+            match -> addPlayer (1, PLAYER_CLR (1), width - 1, 0,          inputs (1))
+            match -> addPlayer (2, PLAYER_CLR (2), width - 1, height - 1, inputs (2))
             match -> addPlayer (3, PLAYER_CLR (3),         0, height - 1, inputs (3))
         end beginMatch
         
@@ -407,7 +409,7 @@ module GameStates
             beginMatch ()
             
             % Setup the fonts
-            fontPlayerInfo := Font.New ("Helvetica:24x12")
+            fontPlayerInfo := Font.New ("Courier New:32x16:Bold")
         end initState
         
         body proc processInput ()
@@ -428,7 +430,7 @@ module GameStates
                 
                 currentRound += 1
                 
-                if currentRound < totalRounds then
+                if currentRound <= totalRounds then
                     beginMatch ()
                 else
                     requestState := STATE_MAIN_MENU
@@ -461,6 +463,18 @@ module GameStates
                            fontPlayerInfo,
                            18)
             end for
+            
+            % Draw the current round & number of rounds
+            var roundsDisplay : string := ""
+            roundsDisplay += intstr (currentRound)
+            roundsDisplay += "/"
+            roundsDisplay += intstr (totalRounds)
+            
+            Font.Draw (roundsDisplay,
+                      ((SCORE_CENTRE_OFF + SCORE_WIDTH * 4)),
+                       (cameraY - BASE_LENGTH * 4) div 2 + BASE_LENGTH * 2,
+                       fontPlayerInfo,
+                       18)
         end render
         
         body proc freeState ()

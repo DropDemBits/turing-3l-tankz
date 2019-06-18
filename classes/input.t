@@ -137,6 +137,11 @@ module InputControllers
             
             % Apply new acceleration
             player_ -> setAccel (lineAccel, angleAccel)
+            
+            if keys (key_shoot) then
+                % Briefly zero velocity if shooting
+                player_ -> setSpeed (0, 0)
+            end if
         end update
     end KeyboardController
     
@@ -151,6 +156,7 @@ module InputControllers
         
         %%% Runtime Variables %%%
         var shoot_button : int := BUTTON_LEFT
+        var drive_button : int := BUTTON_RIGHT
         
         var lastAngle : real := 0
         var destAngle : real := 0
@@ -171,8 +177,12 @@ module InputControllers
             end if
             
             case scheme of
-            label MOUSE_SCHEME_LEFT  : shoot_button := BUTTON_LEFT
-            label MOUSE_SCHEME_RIGHT : shoot_button := BUTTON_RIGHT
+            label MOUSE_SCHEME_LEFT  :
+                shoot_button := BUTTON_LEFT
+                drive_button := BUTTON_RIGHT
+            label MOUSE_SCHEME_RIGHT :
+                shoot_button := BUTTON_RIGHT
+                drive_button := BUTTON_LEFT
             label : % Nothing
             end case
         end setScheme
@@ -238,13 +248,13 @@ module InputControllers
             % Initially only apply rotation acceleration
             player_ -> setAccel (0, angleAccel)
             
-            if mouseButton = 100 then
+            if mouseButton = drive_button then
                 % Speed along once the mouse button is down
                 player_ -> setAccel (lineAccel, angleAccel)
             end if
             
             % Update the shooting state
-            player_ -> setShootingState (mouseButton = 1)
+            player_ -> setShootingState (mouseButton = shoot_button)
         end update
     end MouseController
     
