@@ -1,4 +1,4 @@
-% Zach Cadorna - UI Utilities
+% [REDACTED] - UI Utilities
 % 2019-06-17
 % Basic framework for UI elements
 
